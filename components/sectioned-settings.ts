@@ -354,7 +354,7 @@ export class SectionedSettings implements Component {
         // Only some items matched: include header + matched items
         filtered.push(currentSection);
         for (const item of sectionItems) {
-          if (item.item && item.item.label.toLowerCase().includes(q)) {
+          if (item.item?.label.toLowerCase().includes(q)) {
             filtered.push(item);
           }
         }

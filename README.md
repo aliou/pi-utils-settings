@@ -134,6 +134,7 @@ interface ConfigStore<TConfig, TResolved> {
 
 - **SectionedSettings**: Grouped settings list with search filtering and cursor preservation on update.
 - **ArrayEditor**: String array editor with add/remove/reorder.
+- **PathArrayEditor**: Path-focused array editor with Tab completion in add/edit mode.
 
 ### Helpers
 
@@ -148,5 +149,6 @@ export { ConfigLoader, type ConfigStore, type Migration } from "./config-loader"
 export { registerSettingsCommand, type SettingsCommandOptions } from "./settings-command";
 export { SectionedSettings, type SectionedSettingsOptions, type SettingsSection } from "./components/sectioned-settings";
 export { ArrayEditor, type ArrayEditorOptions } from "./components/array-editor";
+export { PathArrayEditor, type PathArrayEditorOptions } from "./components/path-array-editor";
 export { setNestedValue, getNestedValue, displayToStorageValue } from "./helpers";
 ```

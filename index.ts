@@ -18,6 +18,10 @@ export {
   type FuzzySelectorOptions,
 } from "./components/fuzzy-selector";
 export {
+  PathArrayEditor,
+  type PathArrayEditorOptions,
+} from "./components/path-array-editor";
+export {
   SectionedSettings,
   type SectionedSettingsOptions,
   type SettingsSection,

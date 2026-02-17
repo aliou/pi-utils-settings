@@ -5,7 +5,10 @@
  * Changes are tracked in memory. Ctrl+S saves, Esc exits without saving.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+} from "@mariozechner/pi-coding-agent";
 import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
 import { Key, matchesKey } from "@mariozechner/pi-tui";
 import {
@@ -76,7 +79,7 @@ export interface SettingsCommandOptions<
    * Called after save succeeds. Use this to reload runtime state
    * that was captured at extension init time.
    */
-  onSave?: () => void | Promise<void>;
+  onSave?: (ctx: ExtensionCommandContext) => void | Promise<void>;
 }
 
 function defaultChangeHandler<TConfig extends object>(
@@ -256,7 +259,7 @@ export function registerSettingsCommand<
 
           if (saved) {
             ctx.ui.notify(`${extensionLabel}: saved`, "info");
-            if (onSave) await onSave();
+            if (onSave) await onSave(ctx);
             // Rebuild with fresh data.
             settings = buildSettingsComponent(activeScope);
           }

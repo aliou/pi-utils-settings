@@ -292,3 +292,5 @@ my-extension/
     settings.ts  # registerSettingsCommand (edit existing config)
     setup.ts     # optional: multi-step wizard for first-time config
 ```
+
+A complete reference extension is bundled at `references/example-extension/`. It demonstrates every feature: config types, migrations, afterMerge, settings command with all item types (toggles, enums, submenus with ArrayEditor/PathArrayEditor/FuzzySelector), setup wizard with multi-step `ctx.ui.custom`, and the activation pattern.

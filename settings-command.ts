@@ -9,11 +9,13 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from "@mariozechner/pi-coding-agent";
+import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
 import {
-  DynamicBorder,
-  getSettingsListTheme,
-} from "@mariozechner/pi-coding-agent";
-import { Key, matchesKey } from "@mariozechner/pi-tui";
+  Key,
+  matchesKey,
+  truncateToWidth,
+  visibleWidth,
+} from "@mariozechner/pi-tui";
 import {
   SectionedSettings,
   type SettingsSection,
@@ -203,7 +205,7 @@ export function registerSettingsCommand<
               handleChange(scope, id, newValue);
             },
             () => done(undefined),
-            { enableSearch: true, hintSuffix: "Ctrl+S to save" },
+            { enableSearch: true, hideHint: true },
           );
         }
 
@@ -272,10 +274,10 @@ export function registerSettingsCommand<
 
         // --- Tab rendering ---
 
-        function renderTabs(): string[] {
+        function renderTabs(_contentWidth: number): string {
           // Single scope = no tabs needed
           if (enabledScopes.length === 1) {
-            return [""];
+            return "";
           }
 
           const tabLabels = enabledScopes.map((scope) => {
@@ -289,7 +291,18 @@ export function registerSettingsCommand<
             return theme.fg("dim", fullLabel);
           });
 
-          return ["", `  ${tabLabels.join("  ")}`, ""];
+          return tabLabels.join("  ");
+        }
+
+        function padLine(content: string, contentWidth: number): string {
+          const len = visibleWidth(content);
+          const padding = Math.max(0, contentWidth - len);
+          return (
+            theme.fg("border", "│") +
+            truncateToWidth(content, contentWidth) +
+            " ".repeat(padding) +
+            theme.fg("border", "│")
+          );
         }
 
         function handleTabSwitch(data: string): boolean {
@@ -313,18 +326,59 @@ export function registerSettingsCommand<
         // --- Init ---
 
         settings = buildSettingsComponent(activeScope);
-        const border = new DynamicBorder((segment) =>
-          theme.fg("border", segment),
-        );
 
         return {
           render(width: number) {
             const lines: string[] = [];
-            lines.push(...border.render(width));
-            lines.push(theme.fg("accent", theme.bold(title)));
-            lines.push(...renderTabs());
-            lines.push(...(settings?.render(width) ?? []));
-            lines.push(...border.render(width));
+            const contentWidth = Math.max(1, width - 2);
+
+            // Top border with title
+            const titleText = ` ${title} `;
+            const titleLen = visibleWidth(titleText);
+            const topRuleLen = Math.max(1, width - titleLen - 3);
+            lines.push(
+              theme.fg("border", "╭─") +
+                theme.fg("accent", theme.bold(titleText)) +
+                theme.fg("border", "─".repeat(topRuleLen)) +
+                theme.fg("border", "╮"),
+            );
+
+            // Scope tabs
+            const tabs = renderTabs(contentWidth);
+            if (tabs) {
+              lines.push(padLine(tabs, contentWidth));
+            }
+            lines.push(padLine("", contentWidth));
+
+            // Settings content
+            const innerLines = settings?.render(contentWidth) ?? [];
+            for (const line of innerLines) {
+              lines.push(padLine(line, contentWidth));
+            }
+
+            // Separator
+            lines.push(
+              theme.fg("border", "├") +
+                theme.fg("border", "─".repeat(contentWidth)) +
+                theme.fg("border", "┤"),
+            );
+
+            // Controls
+            const parts = ["Enter/Space change"];
+            if (enabledScopes.length > 1) {
+              parts.push("Tab/Shift+Tab scope");
+            }
+            parts.push("Ctrl+S save", "Esc close");
+            const controlsText = theme.fg("dim", ` ${parts.join(" · ")}`);
+            lines.push(padLine(controlsText, contentWidth));
+
+            // Bottom border
+            lines.push(
+              theme.fg("border", "╰") +
+                theme.fg("border", "─".repeat(contentWidth)) +
+                theme.fg("border", "╯"),
+            );
+
             return lines;
           },
           invalidate() {

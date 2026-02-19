@@ -27,6 +27,8 @@ export interface SectionedSettingsOptions {
   enableSearch?: boolean;
   /** Extra text appended to the hint line (e.g. "Ctrl+S to save"). */
   hintSuffix?: string;
+  /** Hide the built-in hint line (when the parent renders its own controls). */
+  hideHint?: boolean;
 }
 
 interface FlatEntry {
@@ -47,6 +49,7 @@ export class SectionedSettings implements Component {
   private searchInput?: Input;
   private searchEnabled: boolean;
   private hintSuffix: string;
+  private hideHint: boolean;
   private submenuComponent: Component | null = null;
   private submenuItemIndex: number | null = null;
 
@@ -65,6 +68,7 @@ export class SectionedSettings implements Component {
     this.onCancel = onCancel;
     this.searchEnabled = options.enableSearch ?? false;
     this.hintSuffix = options.hintSuffix ?? "";
+    this.hideHint = options.hideHint ?? false;
     this.selectedIndex = 0;
 
     if (this.searchEnabled) {
@@ -259,7 +263,9 @@ export class SectionedSettings implements Component {
       }
     }
 
-    this.addHintLine(lines);
+    if (!this.hideHint) {
+      this.addHintLine(lines);
+    }
     return lines;
   }
 

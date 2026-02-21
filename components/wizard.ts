@@ -62,6 +62,12 @@ export interface WizardOptions {
   onCancel: () => void;
   /** Hint text appended to the controls line. */
   hintSuffix?: string;
+  /**
+   * Minimum number of lines for the inner step content area.
+   * If a step renders fewer lines, the wizard pads with blanks.
+   * This keeps the wizard height stable across tabs.
+   */
+  minContentHeight?: number;
 }
 
 export class Wizard implements Component {
@@ -75,6 +81,7 @@ export class Wizard implements Component {
   private activeIndex = 0;
   private completed: boolean[];
   private components: Component[];
+  private minContentHeight: number;
 
   constructor(options: WizardOptions) {
     this.steps = options.steps;
@@ -83,6 +90,7 @@ export class Wizard implements Component {
     this.onCancel = options.onCancel;
     this.title = options.title;
     this.hintSuffix = options.hintSuffix ?? "";
+    this.minContentHeight = options.minContentHeight ?? 0;
 
     this.completed = new Array(options.steps.length).fill(false) as boolean[];
     this.components = options.steps.map((step, i) =>
@@ -141,13 +149,16 @@ export class Wizard implements Component {
     lines.push(this.padLine(tabLine, contentWidth));
     lines.push(this.padLine("", contentWidth));
 
-    // --- Inner component ---
+    // --- Inner component (padded to minContentHeight) ---
     const innerComponent = this.components[this.activeIndex];
-    if (innerComponent) {
-      const innerLines = innerComponent.render(contentWidth);
-      for (const line of innerLines) {
-        lines.push(this.padLine(line, contentWidth));
-      }
+    const innerLines = innerComponent
+      ? innerComponent.render(contentWidth)
+      : [];
+    for (const line of innerLines) {
+      lines.push(this.padLine(line, contentWidth));
+    }
+    for (let i = innerLines.length; i < this.minContentHeight; i++) {
+      lines.push(this.padLine("", contentWidth));
     }
 
     // --- Separator ---

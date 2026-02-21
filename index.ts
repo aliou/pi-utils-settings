@@ -15,6 +15,11 @@ export {
   type ArrayEditorOptions,
 } from "./components/array-editor";
 export {
+  FuzzyMultiSelector,
+  type FuzzyMultiSelectorItem,
+  type FuzzyMultiSelectorOptions,
+} from "./components/fuzzy-multi-selector";
+export {
   FuzzySelector,
   type FuzzySelectorOptions,
 } from "./components/fuzzy-selector";

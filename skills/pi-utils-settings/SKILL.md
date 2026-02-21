@@ -265,6 +265,7 @@ This package includes TUI components for use in settings UIs and setup wizards. 
 | `ArrayEditor`        | Edit a `string[]` (add/edit/delete)            |
 | `PathArrayEditor`    | Same as ArrayEditor + Tab path completion      |
 | `FuzzySelector`      | Fuzzy-searchable single-select list            |
+| `FuzzyMultiSelector` | Fuzzy-searchable multi-select checklist         |
 
 These components implement the pi-tui `Component` interface (`render`, `handleInput`, `invalidate`). They are designed for use inside `registerSettingsCommand` submenus or `ctx.ui.custom` calls.
 

@@ -117,6 +117,79 @@ import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
 }
 ```
 
+### SectionedSettings vs SettingsDetailEditor
+
+Use **SectionedSettings** alone when each row can be edited in one step (toggle, enum cycle, or a simple submenu).
+
+Use **SectionedSettings + SettingsDetailEditor** when a selected row needs a focused second-level panel with multiple editable fields.
+
+`SettingsDetailEditor` is data-driven. You pass field descriptors with getters/setters and optional nested submenu callbacks. The component owns keyboard navigation and rendering only.
+
+```typescript
+import {
+  ArrayEditor,
+  SettingsDetailEditor,
+  type SettingsDetailField,
+} from "@aliou/pi-utils-settings";
+import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
+
+const fields: SettingsDetailField[] = [
+  {
+    id: "autoSave",
+    type: "boolean",
+    label: "Auto save",
+    getValue: () => editor.autoSave,
+    setValue: (next) => {
+      editor.autoSave = next;
+    },
+  },
+  {
+    id: "tabSize",
+    type: "enum",
+    label: "Tab size",
+    getValue: () => String(editor.tabSize),
+    setValue: (next) => {
+      editor.tabSize = Number.parseInt(next, 10);
+    },
+    options: ["2", "4", "8"],
+  },
+  {
+    id: "favorites",
+    type: "submenu",
+    label: "Favorites",
+    getValue: () => `${favorites.length} items`,
+    submenu: (done) =>
+      new ArrayEditor({
+        label: "Favorites",
+        items: [...favorites],
+        theme: getSettingsListTheme(),
+        onSave: (items) => {
+          favorites = items;
+        },
+        onDone: () => done(`${favorites.length} items`),
+      }),
+  },
+  {
+    id: "clear",
+    type: "action",
+    label: "Clear favorites",
+    getValue: () => "destructive",
+    onConfirm: () => {
+      favorites = [];
+    },
+    confirmMessage: "Clear all favorites? This cannot be undone.",
+  },
+];
+
+const detail = new SettingsDetailEditor({
+  title: "Editor details",
+  fields,
+  theme: getSettingsListTheme(),
+  onDone: (summary) => done(summary),
+  getDoneSummary: () => `${favorites.length} items`,
+});
+```
+
 ### ConfigStore interface
 
 Extensions with custom config loaders can implement `ConfigStore` directly instead of using `ConfigLoader`:
@@ -133,6 +206,7 @@ interface ConfigStore<TConfig, TResolved> {
 ### Components
 
 - **SectionedSettings**: Grouped settings list with search filtering and cursor preservation on update.
+- **SettingsDetailEditor**: Focused second-level editor for one selected item (text, enum, boolean, nested submenu, destructive action).
 - **ArrayEditor**: String array editor with add/remove/reorder.
 - **PathArrayEditor**: Path-focused array editor with Tab completion in add/edit mode.
 
@@ -148,6 +222,16 @@ interface ConfigStore<TConfig, TResolved> {
 export { ConfigLoader, type ConfigStore, type Migration } from "./config-loader";
 export { registerSettingsCommand, type SettingsCommandOptions } from "./settings-command";
 export { SectionedSettings, type SectionedSettingsOptions, type SettingsSection } from "./components/sectioned-settings";
+export {
+  SettingsDetailEditor,
+  type SettingsDetailActionField,
+  type SettingsDetailBooleanField,
+  type SettingsDetailEditorOptions,
+  type SettingsDetailEnumField,
+  type SettingsDetailField,
+  type SettingsDetailSubmenuField,
+  type SettingsDetailTextField,
+} from "./components/settings-detail-editor";
 export { ArrayEditor, type ArrayEditorOptions } from "./components/array-editor";
 export { PathArrayEditor, type PathArrayEditorOptions } from "./components/path-array-editor";
 export { setNestedValue, getNestedValue, displayToStorageValue } from "./helpers";

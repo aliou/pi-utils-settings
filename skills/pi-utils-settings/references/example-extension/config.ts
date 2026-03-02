@@ -25,6 +25,11 @@ export interface ExampleConfig {
   };
   favorites?: string[];
   ignorePaths?: string[];
+  profiles?: Array<{
+    name?: string;
+    theme?: string;
+    enabled?: boolean;
+  }>;
 }
 
 // --- Resolved config (all required, defaults applied) ---
@@ -42,6 +47,11 @@ export interface ResolvedExampleConfig {
   };
   favorites: string[];
   ignorePaths: string[];
+  profiles: Array<{
+    name: string;
+    theme: string;
+    enabled: boolean;
+  }>;
 }
 
 // --- Defaults ---
@@ -59,6 +69,10 @@ const DEFAULT_CONFIG: ResolvedExampleConfig = {
   },
   favorites: [],
   ignorePaths: [],
+  profiles: [
+    { name: "Primary", theme: "dark", enabled: true },
+    { name: "Preview", theme: "light", enabled: false },
+  ],
 };
 
 // --- Migrations ---

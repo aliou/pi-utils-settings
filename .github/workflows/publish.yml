@@ -19,6 +19,7 @@ jobs:
       contents: write
       packages: write
       pull-requests: write
+      id-token: write
 
     steps:
       - name: Checkout
@@ -36,6 +37,9 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           scope: "@aliou"
           cache: "pnpm"
+
+      - name: Upgrade npm for OIDC support
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -81,6 +85,7 @@ jobs:
           commit: ${{ steps.release-info.outputs.commit }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
 
       - name: Create GitHub releases
         if: steps.changesets.outputs.published == 'true'
@@ -89,15 +94,15 @@ jobs:
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
         run: |
           node <<'NODE'
-          const { execSync } = require('node:child_process');
+          const { execSync } = require("node:child_process");
 
-          const published = JSON.parse(process.env.PUBLISHED_PACKAGES || '[]');
+          const published = JSON.parse(process.env.PUBLISHED_PACKAGES || "[]");
 
           for (const pkg of published) {
-            const shortName = pkg.name.replace(/^@[^/]+\//, '');
+            const shortName = pkg.name.replace(/^@[^/]+\//, "");
             const tag = `${shortName}@${pkg.version}`;
 
-            const existing = execSync(`git tag --list ${tag}`, { encoding: 'utf8' }).trim();
+            const existing = execSync(`git tag --list ${tag}`, { encoding: "utf8" }).trim();
             if (!existing) {
               execSync(`git tag ${tag}`);
               execSync(`git push origin ${tag}`);
@@ -106,10 +111,8 @@ jobs:
             let hasRelease = false;
             try {
               const output = execSync(`gh release view ${tag} --json tagName --jq .tagName`, {
-                stdio: ['ignore', 'pipe', 'ignore']
-              })
-                .toString()
-                .trim();
+                stdio: ["ignore", "pipe", "ignore"],
+              }).toString().trim();
               hasRelease = output.length > 0;
             } catch {
               hasRelease = false;
@@ -117,7 +120,7 @@ jobs:
 
             if (!hasRelease) {
               execSync(`gh release create ${tag} --title ${tag} --notes "Release ${tag}"`, {
-                stdio: 'inherit'
+                stdio: "inherit",
               });
             }
           }

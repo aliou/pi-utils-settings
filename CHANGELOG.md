@@ -1,5 +1,26 @@
 # @aliou/pi-utils-settings
 
+## 0.8.0
+
+### Minor Changes
+
+- b404f50: Add optional `extraTabs` support to `registerSettingsCommand` so extensions can render non-scope top-level tabs (for example, an `Examples` tab) after scope tabs.
+
+  - Add `ExtraSettingsTab` and `ExtraSettingsTabContext` types and export them from package root.
+  - Keep existing scope-tab `buildSections` and save semantics unchanged.
+  - Make tab switching cycle across scope + extra tabs.
+  - Validate tab id collisions with reserved scope ids.
+  - Update README and skill/reference docs with `extraTabs` examples.
+
+- 29a909d: Add Wizard-safe settings theme support by introducing a combined `SettingsTheme` that works as both `SettingsListTheme` and full pi `Theme`.
+
+  - Add and export `SettingsTheme` (`SettingsListTheme & Theme`).
+  - Add and export `getSettingsTheme(theme)` helper to build a combined theme object.
+  - Extend `registerSettingsCommand` `buildSections` ctx with `theme: SettingsTheme`.
+  - Extend `ExtraSettingsTabContext` with `theme: SettingsTheme`.
+  - Keep existing `getSettingsListTheme()` consumers and existing callbacks backward-compatible.
+  - Update README and example reference to show `ctx.theme` usage for both settings list and full Theme methods.
+
 ## 0.6.0
 
 ### Minor Changes

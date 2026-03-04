@@ -11,7 +11,6 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from "@mariozechner/pi-coding-agent";
-import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
 import {
   Key,
   matchesKey,
@@ -28,6 +27,7 @@ import {
   getNestedValue,
   setNestedValue,
 } from "./helpers";
+import { getSettingsTheme, type SettingsTheme } from "./theme";
 
 /** Display labels for each scope */
 const SCOPE_LABELS: Record<Scope, string> = {
@@ -47,6 +47,7 @@ export interface ExtraSettingsTabContext<
   getDraftForScope: (scope: Scope) => TConfig | null;
   getRawForScope: (scope: Scope) => TConfig | null;
   enabledScopes: Scope[];
+  theme: SettingsTheme;
 }
 
 export interface ExtraSettingsTab<
@@ -94,8 +95,10 @@ export interface SettingsCommandOptions<
    * Called on initial render, tab switch, and after saving.
    *
    * Use ctx.setDraft in submenu onSave callbacks to store changes
-   * in the draft. All changes (toggles, enums, submenus) are only
-   * persisted to disk on Ctrl+S.
+   * in the draft. Use ctx.theme when you need styling helpers that
+   * work for both SettingsListTheme and full Theme consumers.
+   * All changes (toggles, enums, submenus) are only persisted to disk
+   * on Ctrl+S.
    *
    * For memory scope, tabConfig is null when no overrides exist yet.
    * Use resolved values as display values in that case.
@@ -107,6 +110,7 @@ export interface SettingsCommandOptions<
       setDraft: (config: TConfig) => void;
       scope: Scope;
       isInherited: (path: string) => boolean;
+      theme: SettingsTheme;
     },
   ) => SettingsSection[];
   /** Optional extra tabs rendered after scope tabs. */
@@ -222,7 +226,7 @@ export function registerSettingsCommand<
       await ctx.ui.custom((tui, theme, _kb, done) => {
         let settings: SectionedSettings | null = null;
         let currentSections: SettingsSection[] = [];
-        const settingsTheme = getSettingsListTheme();
+        const settingsTheme = getSettingsTheme(theme);
 
         // Per-scope draft configs. null = no changes from disk/memory.
         const drafts: Partial<Record<Scope, TConfig | null>> = {};
@@ -285,6 +289,7 @@ export function registerSettingsCommand<
               },
               scope: tabId,
               isInherited: (path) => isInherited(tabId, path),
+              theme: settingsTheme,
             });
             return currentSections;
           }
@@ -301,6 +306,7 @@ export function registerSettingsCommand<
             getDraftForScope,
             getRawForScope,
             enabledScopes,
+            theme: settingsTheme,
           });
           return currentSections;
         }

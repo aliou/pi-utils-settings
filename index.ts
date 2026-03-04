@@ -9,6 +9,7 @@
  * - SettingsDetailEditor: focused second-level settings editor
  * - ArrayEditor: string array editor submenu component
  * - Helpers: nested value access, display-to-storage value mapping
+ * - getSettingsTheme: combined settings-list + full Theme helper
  */
 
 export {
@@ -66,3 +67,4 @@ export {
   registerSettingsCommand,
   type SettingsCommandOptions,
 } from "./settings-command";
+export { getSettingsTheme, type SettingsTheme } from "./theme";

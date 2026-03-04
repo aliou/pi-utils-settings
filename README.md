@@ -71,14 +71,14 @@ registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
   commandName: "my-ext:settings",
   title: "My Extension Settings",
   configStore: configLoader, // implements ConfigStore interface
-  buildSections: (tabConfig, resolved, { setDraft }) => [
+  buildSections: (tabConfig, resolved, { setDraft, theme }) => [
     {
       label: "General",
       items: [
         {
           id: "features.darkMode",
           label: "Dark mode",
-          description: "Enable dark mode",
+          description: theme.fg("dim", "Enable dark mode"),
           currentValue: (tabConfig?.features?.darkMode ?? resolved.features.darkMode) ? "on" : "off",
           values: ["on", "off"],
         },
@@ -129,6 +129,33 @@ const extraTabs: ExtraSettingsTab<MyConfig, ResolvedConfig>[] = [
 
 `Ctrl+S` behavior stays the same: only dirty scope drafts are saved. Extra tabs can still update drafts by calling `setDraftForScope(...)` from submenu callbacks.
 
+`buildSections` ctx now includes `theme`, which is both a `SettingsListTheme` and full pi `Theme`. This means you can use list helpers (`label`, `value`, `hint`, ...) and pass the same object to components that require full `Theme`.
+
+```typescript
+import { Wizard } from "@aliou/pi-utils-settings";
+
+buildSections: (_tabConfig, _resolved, ctx) => [
+  {
+    label: "Setup",
+    items: [
+      {
+        id: "setup.wizard",
+        label: "Run setup",
+        currentValue: ctx.theme.fg("accent", "open"),
+        submenu: (_value, done) =>
+          new Wizard({
+            title: "Setup",
+            theme: ctx.theme,
+            steps: [{ label: "Step", build: () => ({ render: () => [ctx.theme.hint("Ready")], handleInput: () => {} }) }],
+            onComplete: () => done("done"),
+            onCancel: () => done(undefined),
+          }),
+      },
+    ],
+  },
+];
+```
+
 ### Submenu support
 
 Items can open submenus by providing a `submenu` factory. Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):
@@ -145,7 +172,7 @@ import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
     return new ArrayEditor({
       label: "Tags",
       items: [...tags],
-      theme: getSettingsListTheme(),
+      theme: ctx.theme,
       onSave: (items) => {
         latest = items;
         const updated = structuredClone(tabConfig ?? {}) as MyConfig;
@@ -256,6 +283,7 @@ interface ConfigStore<TConfig, TResolved> {
 - `setNestedValue(obj, "a.b.c", value)`: Set a deeply nested value by dot-separated path.
 - `getNestedValue(obj, "a.b.c")`: Get a deeply nested value by dot-separated path.
 - `displayToStorageValue(id, displayValue)`: Convert display values (`"enabled"/"disabled"`, `"on"/"off"`) to storage values (`true/false`).
+- `getSettingsTheme(theme)`: Build a combined settings theme (`SettingsTheme`) usable by both settings-list components and full-theme components like `Wizard`.
 
 ## Exports
 
@@ -276,4 +304,5 @@ export {
 export { ArrayEditor, type ArrayEditorOptions } from "./components/array-editor";
 export { PathArrayEditor, type PathArrayEditorOptions } from "./components/path-array-editor";
 export { setNestedValue, getNestedValue, displayToStorageValue } from "./helpers";
+export { getSettingsTheme, type SettingsTheme } from "./theme";
 ```

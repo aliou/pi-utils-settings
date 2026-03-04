@@ -23,7 +23,6 @@ import {
   SettingsDetailEditor,
 } from "@aliou/pi-utils-settings";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
 import {
   configLoader,
   type ExampleConfig,
@@ -88,7 +87,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   label: "Select Theme",
                   items: AVAILABLE_THEMES,
                   currentValue: theme,
-                  theme: getSettingsListTheme(),
+                  theme: ctx.theme,
                   onSelect: (selected) => {
                     const current = tabConfig ?? ({} as ExampleConfig);
                     const updated: ExampleConfig = {
@@ -183,7 +182,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
 
                 return new SettingsDetailEditor({
                   title: "Editor details",
-                  theme: getSettingsListTheme(),
+                  theme: ctx.theme,
                   fields: [
                     {
                       id: "appearance.theme.raw",
@@ -244,7 +243,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                         new ArrayEditor({
                           label: "Favorites",
                           items: [...nextFavorites],
-                          theme: getSettingsListTheme(),
+                          theme: ctx.theme,
                           onSave: (items) => {
                             nextFavorites = items;
                             syncDraft();
@@ -301,7 +300,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                 return new ArrayEditor({
                   label: "Favorites",
                   items: [...currentArray],
-                  theme: getSettingsListTheme(),
+                  theme: ctx.theme,
                   onSave: (items) => {
                     const updated: ExampleConfig = {
                       ...current,
@@ -336,7 +335,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                 return new PathArrayEditor({
                   label: "Ignored Paths",
                   items: [...currentArray],
-                  theme: getSettingsListTheme(),
+                  theme: ctx.theme,
                   validatePath: (value) => {
                     if (value.includes("..")) {
                       return "Relative parent paths not allowed";
@@ -384,7 +383,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
 
                 return new SettingsDetailEditor({
                   title: "Profiles",
-                  theme: getSettingsListTheme(),
+                  theme: ctx.theme,
                   fields: nextProfiles.map((_, index) => ({
                     id: `profiles.${index}`,
                     type: "submenu" as const,
@@ -404,7 +403,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                             ? `Profile ${index + 1}: ${profile.name ?? "Unnamed"}`
                             : `Profile ${index + 1}`;
                         },
-                        theme: getSettingsListTheme(),
+                        theme: ctx.theme,
                         fields: [
                           {
                             id: `profiles.${index}.name`,
@@ -483,7 +482,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
       {
         id: "examples",
         label: "Examples",
-        buildSections: ({ resolved, enabledScopes, getRawForScope }) => [
+        buildSections: ({ resolved, enabledScopes, getRawForScope, theme }) => [
           {
             label: "Info",
             items: [
@@ -496,7 +495,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
               {
                 id: "examples.theme",
                 label: "Resolved theme",
-                currentValue: resolved.appearance.theme,
+                currentValue: theme.fg("accent", resolved.appearance.theme),
               },
               {
                 id: "examples.hasGlobal",

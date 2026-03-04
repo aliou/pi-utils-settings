@@ -70,6 +70,56 @@ registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
 });
 ```
 
+### Extra top-level tabs (non-scope)
+
+Use `extraTabs` when you need tabs like `Examples`, `Help`, or `Presets` that are not tied to a specific scope.
+
+```typescript
+import { registerSettingsCommand, type ExtraSettingsTab } from "@aliou/pi-utils-settings";
+
+const extraTabs: ExtraSettingsTab<MyConfig, ResolvedConfig>[] = [
+  {
+    id: "examples",
+    label: "Examples",
+    buildSections: ({ resolved, enabledScopes, getRawForScope }) => [
+      {
+        label: "Info",
+        items: [
+          {
+            id: "examples.scopes",
+            label: "Enabled scopes",
+            currentValue: enabledScopes.join(", "),
+          },
+          {
+            id: "examples.theme",
+            label: "Dark mode",
+            currentValue: resolved.features.darkMode ? "on" : "off",
+          },
+          {
+            id: "examples.global",
+            label: "Global config",
+            currentValue: getRawForScope("global") ? "present" : "missing",
+          },
+        ],
+      },
+    ],
+  },
+];
+
+registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
+  commandName: "my-ext:settings",
+  title: "My Extension Settings",
+  configStore: configLoader,
+  extraTabs,
+  buildSections: (tabConfig, resolved, ctx) => {
+    // scope-tab builder (unchanged)
+    return [];
+  },
+});
+```
+
+`Ctrl+S` semantics stay the same: only dirty scope drafts are saved. Extra tabs can still mutate scope drafts via `setDraftForScope(...)` (typically from submenu callbacks).
+
 ## Scopes
 
 ConfigLoader supports three scopes, merged lowest-to-highest priority:
@@ -88,7 +138,7 @@ new ConfigLoader("my-ext", defaults, {
 });
 ```
 
-The settings UI shows one tab per enabled scope. Tab/Shift+Tab switches tabs.
+The settings UI shows one tab per enabled scope. You can also add non-scope top-level tabs with `extraTabs`. Tab/Shift+Tab switches across all tabs.
 
 ## Adding Settings Items
 
@@ -288,4 +338,4 @@ my-extension/
     setup.ts     # optional: multi-step wizard for first-time config
 ```
 
-A complete reference extension is bundled at `references/example-extension/`. It demonstrates every feature: config types, migrations, afterMerge, settings command with all item types (toggles, enums, submenus with ArrayEditor/PathArrayEditor/FuzzySelector), setup wizard using the Wizard component with tabbed steps, and the activation pattern.
+A complete reference extension is bundled at `references/example-extension/`. It demonstrates every feature: config types, migrations, afterMerge, settings command with scope tabs plus an extra non-scope tab, all item types (toggles, enums, submenus with ArrayEditor/PathArrayEditor/FuzzySelector), setup wizard using the Wizard component with tabbed steps, and the activation pattern.

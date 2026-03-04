@@ -478,6 +478,37 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
       ];
     },
 
+    // --- Extra non-scope tab ---
+    extraTabs: [
+      {
+        id: "examples",
+        label: "Examples",
+        buildSections: ({ resolved, enabledScopes, getRawForScope }) => [
+          {
+            label: "Info",
+            items: [
+              {
+                id: "examples.scopes",
+                label: "Enabled scopes",
+                currentValue: enabledScopes.join(", "),
+                description: "Extra tabs are rendered after scope tabs.",
+              },
+              {
+                id: "examples.theme",
+                label: "Resolved theme",
+                currentValue: resolved.appearance.theme,
+              },
+              {
+                id: "examples.hasGlobal",
+                label: "Global config",
+                currentValue: getRawForScope("global") ? "present" : "missing",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+
     // --- Custom change handler ---
     // Needed because fontSize and tabSize are numbers, not strings.
     // The default handler would store "14" as a string.

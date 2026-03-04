@@ -1,8 +1,10 @@
 /**
  * Settings command registration helper.
  *
- * Creates a /{name}:settings command with tabs for each enabled scope.
- * Changes are tracked in memory. Ctrl+S saves, Esc exits without saving.
+ * Creates a /{name}:settings command with tabs for enabled scopes
+ * and optional extra top-level tabs.
+ * Changes are tracked in memory. Ctrl+S saves scope drafts,
+ * Esc exits without saving.
  */
 
 import type {
@@ -34,6 +36,47 @@ const SCOPE_LABELS: Record<Scope, string> = {
   memory: "Memory",
 };
 
+const ALL_SCOPE_IDS: Scope[] = ["global", "local", "memory"];
+
+export interface ExtraSettingsTabContext<
+  TConfig extends object,
+  TResolved extends object,
+> {
+  resolved: TResolved;
+  setDraftForScope: (scope: Scope, config: TConfig) => void;
+  getDraftForScope: (scope: Scope) => TConfig | null;
+  getRawForScope: (scope: Scope) => TConfig | null;
+  enabledScopes: Scope[];
+}
+
+export interface ExtraSettingsTab<
+  TConfig extends object,
+  TResolved extends object,
+> {
+  /** Unique tab id. Must not collide with scope ids (global/local/memory). */
+  id: string;
+  /** Tab label shown in top tab row. */
+  label: string;
+  /** Build sections for this extra tab. */
+  buildSections: (
+    ctx: ExtraSettingsTabContext<TConfig, TResolved>,
+  ) => SettingsSection[];
+}
+
+interface ScopeTab {
+  kind: "scope";
+  id: Scope;
+  label: string;
+}
+
+interface ExtraTab {
+  kind: "extra";
+  id: string;
+  label: string;
+}
+
+type SettingsTab = ScopeTab | ExtraTab;
+
 export interface SettingsCommandOptions<
   TConfig extends object,
   TResolved extends object,
@@ -47,7 +90,7 @@ export interface SettingsCommandOptions<
   /** Config store (ConfigLoader or custom implementation). */
   configStore: ConfigStore<TConfig, TResolved>;
   /**
-   * Build the sections for the current tab.
+   * Build the sections for scope tabs.
    * Called on initial render, tab switch, and after saving.
    *
    * Use ctx.setDraft in submenu onSave callbacks to store changes
@@ -66,6 +109,8 @@ export interface SettingsCommandOptions<
       isInherited: (path: string) => boolean;
     },
   ) => SettingsSection[];
+  /** Optional extra tabs rendered after scope tabs. */
+  extraTabs?: ExtraSettingsTab<TConfig, TResolved>[];
   /**
    * Custom change handler. Receives the setting ID, new display value,
    * and a clone of the current tab config. Return the updated config,
@@ -127,22 +172,52 @@ export function registerSettingsCommand<
     `Configure ${commandName.split(":")[0]} settings`;
   const extensionLabel = commandName.split(":")[0] ?? title;
 
+  const extraTabs = options.extraTabs ?? [];
+  const allScopeIds = new Set<Scope>(ALL_SCOPE_IDS);
+  const seenExtraIds = new Set<string>();
+  for (const tab of extraTabs) {
+    if (allScopeIds.has(tab.id as Scope)) {
+      throw new Error(
+        `[settings] extraTabs id "${tab.id}" collides with reserved scope id`,
+      );
+    }
+    if (seenExtraIds.has(tab.id)) {
+      throw new Error(`[settings] Duplicate extraTabs id "${tab.id}"`);
+    }
+    seenExtraIds.add(tab.id);
+  }
+
   pi.registerCommand(commandName, {
     description,
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
 
       const enabledScopes = configStore.getEnabledScopes();
-      if (enabledScopes.length === 0) {
-        ctx.ui.notify("No scopes configured", "error");
+      const scopeTabs: ScopeTab[] = enabledScopes.map((scope) => ({
+        kind: "scope",
+        id: scope,
+        label: SCOPE_LABELS[scope],
+      }));
+      const extraUiTabs: ExtraTab[] = extraTabs.map((tab) => ({
+        kind: "extra",
+        id: tab.id,
+        label: tab.label,
+      }));
+      const allTabs: SettingsTab[] = [...scopeTabs, ...extraUiTabs];
+      const extraTabsById = new Map(extraTabs.map((tab) => [tab.id, tab]));
+
+      if (allTabs.length === 0) {
+        ctx.ui.notify("No tabs configured", "error");
         return;
       }
 
-      // Default to first scope with existing config, else first enabled scope
-      // Safe: we check enabledScopes.length > 0 above
-      let activeScope: Scope =
+      // Default to first scope with existing config, else first scope, else first extra tab.
+      let activeTabId: string =
         enabledScopes.find((s) => configStore.hasConfig(s)) ??
-        (enabledScopes[0] as Scope);
+        enabledScopes[0] ??
+        allTabs[0]?.id;
+
+      const enabledScopeIds = new Set<Scope>(enabledScopes);
 
       await ctx.ui.custom((tui, theme, _kb, done) => {
         let settings: SectionedSettings | null = null;
@@ -157,61 +232,104 @@ export function registerSettingsCommand<
 
         // --- Helpers ---
 
-        /** Get the effective config for the active scope (draft or stored). */
-        function getTabConfig(): TConfig | null {
-          return drafts[activeScope] ?? configStore.getRawConfig(activeScope);
+        function isScopeTabId(tabId: string): tabId is Scope {
+          return enabledScopeIds.has(tabId as Scope);
+        }
+
+        /** Get the effective config for a scope (draft or stored). */
+        function getScopeTabConfig(scope: Scope): TConfig | null {
+          return drafts[scope] ?? configStore.getRawConfig(scope);
         }
 
         /**
          * For memory scope: check if a path has a value in memory config.
          * If not, it's inherited from lower-priority scopes.
          */
-        function isInherited(path: string): boolean {
-          if (activeScope !== "memory") return false;
+        function isInherited(scope: Scope, path: string): boolean {
+          if (scope !== "memory") return false;
           const memoryConfig =
             drafts.memory ?? configStore.getRawConfig("memory");
           if (!memoryConfig) return true; // No memory config = all inherited
           return getNestedValue(memoryConfig, path) === undefined;
         }
 
+        function setDraftForScope(scope: Scope, config: TConfig): void {
+          if (!enabledScopeIds.has(scope)) {
+            throw new Error(`[settings] Scope "${scope}" is not enabled`);
+          }
+          drafts[scope] = config;
+        }
+
+        function getDraftForScope(scope: Scope): TConfig | null {
+          if (!enabledScopeIds.has(scope)) return null;
+          return drafts[scope] ?? null;
+        }
+
+        function getRawForScope(scope: Scope): TConfig | null {
+          if (!enabledScopeIds.has(scope)) return null;
+          return configStore.getRawConfig(scope);
+        }
+
         function isDirty(): boolean {
           return enabledScopes.some((scope) => drafts[scope] !== null);
         }
 
-        function getSections(): SettingsSection[] {
-          const tabConfig = getTabConfig();
+        function getSectionsForTab(tabId: string): SettingsSection[] {
           const resolved = configStore.getConfig();
-          currentSections = buildSections(tabConfig, resolved, {
-            setDraft: (config) => {
-              drafts[activeScope] = config;
-            },
-            scope: activeScope,
-            isInherited,
+
+          if (isScopeTabId(tabId)) {
+            const tabConfig = getScopeTabConfig(tabId);
+            currentSections = buildSections(tabConfig, resolved, {
+              setDraft: (config) => {
+                setDraftForScope(tabId, config);
+              },
+              scope: tabId,
+              isInherited: (path) => isInherited(tabId, path),
+            });
+            return currentSections;
+          }
+
+          const extraTab = extraTabsById.get(tabId);
+          if (!extraTab) {
+            currentSections = [];
+            return currentSections;
+          }
+
+          currentSections = extraTab.buildSections({
+            resolved,
+            setDraftForScope,
+            getDraftForScope,
+            getRawForScope,
+            enabledScopes,
           });
           return currentSections;
         }
 
         function refresh(): void {
-          settings?.updateSections(getSections());
+          settings?.updateSections(getSectionsForTab(activeTabId));
           tui.requestRender();
         }
 
-        function buildSettingsComponent(scope: Scope): SectionedSettings {
+        function buildSettingsComponent(tabId: string): SectionedSettings {
           return new SectionedSettings(
-            getSections(),
+            getSectionsForTab(tabId),
             15,
             settingsTheme,
             (id, newValue) => {
-              handleChange(scope, id, newValue);
+              if (isScopeTabId(tabId)) {
+                handleScopeChange(tabId, id, newValue);
+                return;
+              }
+              handleExtraTabChange(id);
             },
             () => done(undefined),
             { enableSearch: true, hideHint: true },
           );
         }
 
-        // --- Change handler (in-memory only) ---
+        // --- Change handlers (in-memory only) ---
 
-        function handleChange(
+        function handleScopeChange(
           scope: Scope,
           id: string,
           newValue: string,
@@ -223,7 +341,7 @@ export function registerSettingsCommand<
           }
 
           // For memory scope with no existing config, start from merged config
-          let current = getTabConfig();
+          let current = getScopeTabConfig(scope);
           if (scope === "memory" && current === null) {
             current = configStore.getConfig() as unknown as TConfig;
           }
@@ -238,6 +356,16 @@ export function registerSettingsCommand<
 
           // Store in draft, don't write to disk yet.
           drafts[scope] = updated;
+          refresh();
+        }
+
+        function handleExtraTabChange(id: string): void {
+          // Extra tabs are not scope-bound. Keep current save semantics:
+          // only explicit setDraftForScope(...) mutations are tracked/saved.
+          if (isSubmenuItem(currentSections, id)) {
+            refresh();
+            return;
+          }
           refresh();
         }
 
@@ -266,7 +394,7 @@ export function registerSettingsCommand<
             ctx.ui.notify(`${extensionLabel}: saved`, "info");
             if (onSave) await onSave(ctx);
             // Rebuild with fresh data.
-            settings = buildSettingsComponent(activeScope);
+            settings = buildSettingsComponent(activeTabId);
           }
 
           tui.requestRender();
@@ -275,17 +403,16 @@ export function registerSettingsCommand<
         // --- Tab rendering ---
 
         function renderTabs(_contentWidth: number): string {
-          // Single scope = no tabs needed
-          if (enabledScopes.length === 1) {
+          if (allTabs.length <= 1) {
             return "";
           }
 
-          const tabLabels = enabledScopes.map((scope) => {
-            const label = SCOPE_LABELS[scope];
-            const dirtyMark = drafts[scope] ? " *" : "";
-            const fullLabel = ` ${label}${dirtyMark} `;
+          const tabLabels = allTabs.map((tab) => {
+            const dirtyMark =
+              tab.kind === "scope" && drafts[tab.id] ? " *" : "";
+            const fullLabel = ` ${tab.label}${dirtyMark} `;
 
-            if (scope === activeScope) {
+            if (tab.id === activeTabId) {
               return theme.bg("selectedBg", theme.fg("accent", fullLabel));
             }
             return theme.fg("dim", fullLabel);
@@ -306,17 +433,17 @@ export function registerSettingsCommand<
         }
 
         function handleTabSwitch(data: string): boolean {
-          // Single scope = no tab switching
-          if (enabledScopes.length <= 1) return false;
+          if (allTabs.length <= 1) return false;
 
           if (matchesKey(data, Key.tab) || matchesKey(data, Key.shift("tab"))) {
-            const currentIndex = enabledScopes.indexOf(activeScope);
+            const currentIndex = allTabs.findIndex(
+              (tab) => tab.id === activeTabId,
+            );
             const direction = matchesKey(data, Key.shift("tab")) ? -1 : 1;
             const nextIndex =
-              (currentIndex + direction + enabledScopes.length) %
-              enabledScopes.length;
-            activeScope = enabledScopes[nextIndex] as Scope;
-            settings = buildSettingsComponent(activeScope);
+              (currentIndex + direction + allTabs.length) % allTabs.length;
+            activeTabId = allTabs[nextIndex]?.id ?? activeTabId;
+            settings = buildSettingsComponent(activeTabId);
             tui.requestRender();
             return true;
           }
@@ -325,7 +452,7 @@ export function registerSettingsCommand<
 
         // --- Init ---
 
-        settings = buildSettingsComponent(activeScope);
+        settings = buildSettingsComponent(activeTabId);
 
         return {
           render(width: number) {
@@ -343,7 +470,7 @@ export function registerSettingsCommand<
                 theme.fg("border", "╮"),
             );
 
-            // Scope tabs
+            // Tabs
             const tabs = renderTabs(contentWidth);
             if (tabs) {
               lines.push(padLine(tabs, contentWidth));
@@ -365,8 +492,8 @@ export function registerSettingsCommand<
 
             // Controls
             const parts = ["Enter/Space change"];
-            if (enabledScopes.length > 1) {
-              parts.push("Tab/Shift+Tab scope");
+            if (allTabs.length > 1) {
+              parts.push("Tab/Shift+Tab tab");
             }
             parts.push("Ctrl+S save", "Esc close");
             const controlsText = theme.fg("dim", ` ${parts.join(" · ")}`);
@@ -385,7 +512,7 @@ export function registerSettingsCommand<
             settings?.invalidate?.();
           },
           handleInput(data: string) {
-            // Ctrl+S: save all dirty tabs.
+            // Ctrl+S: save all dirty scope tabs.
             if (matchesKey(data, Key.ctrl("s"))) {
               if (isDirty()) void save();
               return;

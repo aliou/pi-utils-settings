@@ -61,6 +61,8 @@ export {
   setNestedValue,
 } from "./helpers";
 export {
+  type ExtraSettingsTab,
+  type ExtraSettingsTabContext,
   registerSettingsCommand,
   type SettingsCommandOptions,
 } from "./settings-command";

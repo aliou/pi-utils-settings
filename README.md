@@ -1,6 +1,6 @@
 # @aliou/pi-utils-settings
 
-Shared settings infrastructure for [pi](https://github.com/mariozechner/pi-coding-agent) extensions. Provides config loading, a settings UI command with Local/Global tabs, and reusable TUI components.
+Shared settings infrastructure for [pi](https://github.com/mariozechner/pi-coding-agent) extensions. Provides config loading, a settings UI command with scope tabs plus optional extra tabs, and reusable TUI components.
 
 This is a utility library, not a pi extension. It is meant to be used as a dependency by extensions that need a settings UI or JSON config management.
 
@@ -60,7 +60,7 @@ new ConfigLoader("my-ext", defaults, {
 
 ### registerSettingsCommand
 
-Creates a `/name:settings` command with Local/Global tabs, draft-based editing, and Ctrl+S to save.
+Creates a `/name:settings` command with scope tabs (Global/Local/Memory), draft-based editing, and Ctrl+S to save.
 
 All changes (boolean toggles, enum cycling, submenu edits) are held in memory as drafts. Nothing is written to disk until the user presses Ctrl+S. Esc exits without saving. Dirty tabs show a `*` marker.
 
@@ -87,6 +87,47 @@ registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
   ],
 });
 ```
+
+You can also add non-scope top-level tabs with `extraTabs`:
+
+```typescript
+import { registerSettingsCommand, type ExtraSettingsTab } from "@aliou/pi-utils-settings";
+
+const extraTabs: ExtraSettingsTab<MyConfig, ResolvedConfig>[] = [
+  {
+    id: "examples",
+    label: "Examples",
+    buildSections: ({ resolved, getRawForScope, enabledScopes }) => {
+      const globalConfig = getRawForScope("global");
+      return [
+        {
+          label: "Examples",
+          items: [
+            {
+              id: "example.enabledScopes",
+              label: "Enabled scopes",
+              currentValue: enabledScopes.join(", "),
+            },
+            {
+              id: "example.darkModeDefault",
+              label: "Dark mode default",
+              currentValue: resolved.features.darkMode ? "on" : "off",
+            },
+            {
+              id: "example.globalPresent",
+              label: "Global config",
+              currentValue: globalConfig ? "present" : "missing",
+              description: "Read-only info tab not tied to a scope.",
+            },
+          ],
+        },
+      ];
+    },
+  },
+];
+```
+
+`Ctrl+S` behavior stays the same: only dirty scope drafts are saved. Extra tabs can still update drafts by calling `setDraftForScope(...)` from submenu callbacks.
 
 ### Submenu support
 

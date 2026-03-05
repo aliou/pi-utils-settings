@@ -34,12 +34,12 @@ Add `ts-json-schema-generator` as a devDep and add scripts to `package.json`:
 
 Run `pnpm gen:schema` to produce `schema.json`. Commit it. Add `"schema.json"` to the `files` array in `package.json` so it ships with the npm package.
 
-Exclude `schema.json` from biome formatting in `biome.json` to avoid drift between the generator output and the committed file:
+Exclude `schema.json` from biome in `biome.json` to avoid drift between the generator output and the committed file. Biome v2 uses negated patterns in `includes`:
 
 ```json
 {
   "files": {
-    "ignore": ["schema.json"]
+    "includes": ["**/*.ts", "**/*.json", "!schema.json"]
   }
 }
 ```

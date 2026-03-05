@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.9.0
+
+### Minor Changes
+
+- 1006f56: Add JSON Schema support: `buildSchemaUrl` helper and `schemaUrl` option for ConfigLoader. When set, `save()` injects `$schema` as the first key and `load()` strips it from parsed config.
+
 ## 0.8.0
 
 ### Minor Changes

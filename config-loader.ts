@@ -96,6 +96,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   private readonly localPath: string | null;
   private readonly defaults: TResolved;
   private readonly migrations: Migration<TConfig>[];
+  private readonly schemaUrl?: string;
   private readonly afterMerge?: (
     resolved: TResolved,
     global: TConfig | null,
@@ -114,6 +115,12 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
       scopes?: Scope[];
       migrations?: Migration<TConfig>[];
       /**
+       * URL to a JSON Schema file. When set, `save()` prepends a
+       * `$schema` field to the written JSON and `readFile()` strips it
+       * before returning `TConfig`.
+       */
+      schemaUrl?: string;
+      /**
        * Post-merge hook. Called after deep merge with all raw configs.
        * Use for logic that can't be expressed as a simple merge
        * (e.g., one field replacing another).
@@ -129,6 +136,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     this.scopes = options?.scopes ?? ["global", "local"];
     this.defaults = defaults;
     this.migrations = options?.migrations ?? [];
+    this.schemaUrl = options?.schemaUrl;
     this.afterMerge = options?.afterMerge;
 
     // Set up paths based on enabled scopes
@@ -311,7 +319,10 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   private async readFile(path: string): Promise<TConfig | null> {
     try {
       const content = await readFile(path, "utf-8");
-      return JSON.parse(content) as TConfig;
+      const parsed = JSON.parse(content);
+      // Strip $schema so it doesn't leak into config types
+      const { $schema: _, ...rest } = parsed;
+      return rest as TConfig;
     } catch {
       return null;
     }
@@ -319,6 +330,9 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
 
   private async writeFile(path: string, config: TConfig): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+    const output = this.schemaUrl
+      ? { $schema: this.schemaUrl, ...config }
+      : config;
+    await writeFile(path, `${JSON.stringify(output, null, 2)}\n`, "utf-8");
   }
 }

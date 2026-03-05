@@ -6,28 +6,50 @@
  * - Multiple scopes (global + local)
  * - Migrations for schema evolution
  * - afterMerge hook for custom merge logic
+ * - JSON Schema generation via ts-json-schema-generator
+ * - $schema injection via buildSchemaUrl
  */
 
-import { ConfigLoader, type Migration } from "@aliou/pi-utils-settings";
+import {
+  buildSchemaUrl,
+  ConfigLoader,
+  type Migration,
+} from "@aliou/pi-utils-settings";
 
 // --- User-facing config (all optional, stored on disk) ---
+// JSDoc comments become `description` fields in the generated JSON Schema.
 
+/** User-facing configuration for the example extension. */
 export interface ExampleConfig {
+  /** Visual appearance settings. */
   appearance?: {
+    /** Color theme name (e.g. "dark", "light", "solarized"). */
     theme?: string;
+    /** Editor font size in pixels. */
     fontSize?: number;
+    /** Show line numbers in the gutter. */
     showLineNumbers?: boolean;
   };
+  /** Editor behavior settings. */
   editor?: {
+    /** Automatically save files after changes. */
     autoSave?: boolean;
+    /** Run formatter on save. */
     formatOnSave?: boolean;
+    /** Number of spaces per tab. */
     tabSize?: number;
   };
+  /** List of favorite file paths. */
   favorites?: string[];
+  /** Glob patterns for paths to ignore. */
   ignorePaths?: string[];
+  /** Named configuration profiles. */
   profiles?: Array<{
+    /** Profile display name. */
     name?: string;
+    /** Theme override for this profile. */
     theme?: string;
+    /** Whether this profile is active. */
     enabled?: boolean;
   }>;
 }
@@ -93,6 +115,12 @@ const migrations: Migration<ExampleConfig>[] = [
   },
 ];
 
+// --- Schema URL ---
+// In a real extension, import name and version from package.json:
+//   import pkg from "../package.json";
+//   const schemaUrl = buildSchemaUrl(pkg.name, pkg.version);
+const schemaUrl = buildSchemaUrl("@aliou/example-extension", "1.0.0");
+
 // --- Loader ---
 
 export const configLoader = new ConfigLoader<
@@ -101,6 +129,7 @@ export const configLoader = new ConfigLoader<
 >("example-extension", DEFAULT_CONFIG, {
   scopes: ["global", "local"],
   migrations,
+  schemaUrl,
   afterMerge: (resolved, _global, local) => {
     // Example: local ignorePaths replace global rather than merge
     if (local?.ignorePaths) {

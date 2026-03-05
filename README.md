@@ -45,6 +45,36 @@ await configLoader.load();
 const config = configLoader.getConfig(); // ResolvedConfig (defaults merged with global + project)
 ```
 
+#### JSON Schema support
+
+`ConfigLoader` can inject a `$schema` field into settings files, giving editors autocomplete and validation. Pair it with `buildSchemaUrl` and auto-generated schemas from `ts-json-schema-generator`.
+
+```typescript
+import { ConfigLoader, buildSchemaUrl } from "@aliou/pi-utils-settings";
+import pkg from "./package.json";
+
+const schemaUrl = buildSchemaUrl(pkg.name, pkg.version);
+
+const loader = new ConfigLoader<MyConfig, ResolvedConfig>(
+  "my-extension",
+  defaults,
+  { schemaUrl },
+);
+```
+
+When `schemaUrl` is set, `save()` writes `$schema` as the first key in the JSON file and `load()` strips it before returning config to callers.
+
+To generate the schema from your `TConfig` type, add these scripts to your extension's `package.json`:
+
+```json
+{
+  "gen:schema": "ts-json-schema-generator --path src/config.ts --type MyConfig --no-type-check -o schema.json",
+  "check:schema": "ts-json-schema-generator --path src/config.ts --type MyConfig --no-type-check -o /tmp/schema-check.json && diff -q schema.json /tmp/schema-check.json"
+}
+```
+
+Run `pnpm gen:schema` to produce `schema.json`, commit it, and add `"schema.json"` to `files` in `package.json` so it ships with your npm package. Add `check:schema` to CI to catch drift.
+
 An optional `afterMerge` hook runs after the deep merge for logic that can't be expressed as a simple merge (e.g., one field replacing another):
 
 ```typescript
@@ -304,5 +334,6 @@ export {
 export { ArrayEditor, type ArrayEditorOptions } from "./components/array-editor";
 export { PathArrayEditor, type PathArrayEditorOptions } from "./components/path-array-editor";
 export { setNestedValue, getNestedValue, displayToStorageValue } from "./helpers";
+export { buildSchemaUrl } from "./schema";
 export { getSettingsTheme, type SettingsTheme } from "./theme";
 ```

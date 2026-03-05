@@ -325,6 +325,12 @@ Note: `packages/ui/` is a separate package with different primitives (panels, to
 
 All changes are held as in-memory drafts until Ctrl+S. Esc exits without saving. Dirty tabs show a `*` marker. After save, `onSave` callback fires (use to reload runtime state).
 
+## JSON Schema for Settings Files
+
+Extensions can ship a JSON Schema so editors provide autocomplete and validation for settings files. The schema is auto-generated from the `TConfig` interface via `ts-json-schema-generator`, and `ConfigLoader` injects a `$schema` field into saved files.
+
+See `references/json-schema.md` for the full setup guide: JSDoc conventions, `gen:schema`/`check:schema` scripts, `buildSchemaUrl` wiring, CI integration, and testing commands.
+
 ## Full Pattern
 
 Typical extension file structure:
@@ -332,7 +338,8 @@ Typical extension file structure:
 ```
 my-extension/
   index.ts       # activate() calls configLoader.load(), registers commands
-  config.ts      # ConfigLoader + types + migrations
+  config.ts      # ConfigLoader + types + migrations + buildSchemaUrl
+  schema.json    # auto-generated JSON Schema (committed, shipped via npm)
   commands/
     settings.ts  # registerSettingsCommand (edit existing config)
     setup.ts     # optional: multi-step wizard for first-time config

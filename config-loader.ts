@@ -66,13 +66,13 @@ function findLocalConfigPath(extensionName: string): string | null {
   const home = homedir();
 
   while (true) {
+    // Stop at home directory — ~/.pi is global, not project-local.
+    if (dir === home) break;
+
     const piDir = resolve(dir, ".pi");
     if (existsSync(piDir) && statSync(piDir).isDirectory()) {
       return resolve(piDir, `extensions/${extensionName}.json`);
     }
-
-    // Stop at home directory
-    if (dir === home) break;
 
     const parent = resolve(dir, "..");
     // Stop if we can't go higher
@@ -93,8 +93,9 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
 
   private readonly scopes: Scope[];
   private readonly globalPath: string | null;
-  private readonly localPath: string | null;
+  private localPath: string | null;
   private readonly defaults: TResolved;
+  private readonly extensionName: string;
   private readonly migrations: Migration<TConfig>[];
   private readonly schemaUrl?: string;
   private readonly afterMerge?: (
@@ -135,6 +136,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   ) {
     this.scopes = options?.scopes ?? ["global", "local"];
     this.defaults = defaults;
+    this.extensionName = extensionName;
     this.migrations = options?.migrations ?? [];
     this.schemaUrl = options?.schemaUrl;
     this.afterMerge = options?.afterMerge;
@@ -229,11 +231,21 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     }
 
     const path = scope === "global" ? this.globalPath : this.localPath;
-    if (!path) {
+
+    // Fallback: create .pi/extensions/ in cwd for local scope if no path found
+    if (!path && scope === "local") {
+      this.localPath = resolve(
+        process.cwd(),
+        `.pi/extensions/${this.extensionName}.json`,
+      );
+    }
+
+    const finalPath = scope === "global" ? this.globalPath : this.localPath;
+    if (!finalPath) {
       throw new Error(`No path configured for scope "${scope}"`);
     }
 
-    await this.writeFile(path, config);
+    await this.writeFile(finalPath, config);
 
     // Reload disk configs but preserve memory
     const savedMemory = this.memoryConfig;

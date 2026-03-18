@@ -518,13 +518,15 @@ export function registerSettingsCommand<
             settings?.invalidate?.();
           },
           handleInput(data: string) {
-            // Ctrl+S: save all dirty scope tabs.
-            if (matchesKey(data, Key.ctrl("s"))) {
+            const hasActiveSubmenu = settings?.hasActiveSubmenu() ?? false;
+
+            // Ctrl+S: save all dirty scope tabs, unless a submenu is open.
+            if (matchesKey(data, Key.ctrl("s")) && !hasActiveSubmenu) {
               if (isDirty()) void save();
               return;
             }
 
-            if (!settings?.hasActiveSubmenu() && handleTabSwitch(data)) return;
+            if (!hasActiveSubmenu && handleTabSwitch(data)) return;
             settings?.handleInput?.(data);
             tui.requestRender();
           },

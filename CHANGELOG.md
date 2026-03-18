@@ -1,5 +1,14 @@
 # @aliou/pi-utils-settings
 
+## 0.10.1
+
+### Patch Changes
+
+- 5e1c968: fix: let nested settings submenus receive Ctrl+S before top-level save
+
+  - when a submenu is open inside `registerSettingsCommand`, top-level settings no longer intercept `Ctrl+S`
+  - this lets nested wizard-style submenus handle their own submit flow, such as the add-policy flow in `pi-guardrails`
+
 ## 0.10.0
 
 ### Minor Changes

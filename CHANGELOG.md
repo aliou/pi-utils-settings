@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.10.2
+
+### Patch Changes
+
+- 221455d: Update Pi peer and development dependencies to 0.61.0.
+
 ## 0.10.1
 
 ### Patch Changes

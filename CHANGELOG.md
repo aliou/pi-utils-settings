@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.10.3
+
+### Patch Changes
+
+- c867cd2: Relax Pi peer dependency range to support current and future Pi versions without strict pinning.
+
 ## 0.10.2
 
 ### Patch Changes

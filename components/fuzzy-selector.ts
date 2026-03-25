@@ -28,6 +28,7 @@ export interface FuzzySelectorOptions {
   onSelect: (value: string) => void;
   onDone: () => void;
   maxVisible?: number; // default 10
+  searchThreshold?: number; // default 7, switch to fuzzy search when item count is above this
 }
 
 export class FuzzySelector implements Component {
@@ -41,6 +42,7 @@ export class FuzzySelector implements Component {
   private maxVisible: number;
   private input: Input;
   private query = "";
+  private useSearch: boolean;
 
   constructor(options: FuzzySelectorOptions) {
     this.allItems = [...options.items];
@@ -50,6 +52,8 @@ export class FuzzySelector implements Component {
     this.onSelect = options.onSelect;
     this.onDone = options.onDone;
     this.maxVisible = options.maxVisible ?? 10;
+    const threshold = options.searchThreshold ?? 7;
+    this.useSearch = this.allItems.length > threshold;
     this.input = new Input();
 
     // Pre-select currentValue if provided and exists in the list
@@ -100,10 +104,12 @@ export class FuzzySelector implements Component {
     lines.push(this.theme.label(` ${this.label}`, true));
     lines.push("");
 
-    // Input field
-    lines.push(this.theme.hint("  Search:"));
-    lines.push(`  ${this.input.render(width - 4).join("")}`);
-    lines.push("");
+    if (this.useSearch) {
+      // Input field
+      lines.push(this.theme.hint("  Search:"));
+      lines.push(`  ${this.input.render(width - 4).join("")}`);
+      lines.push("");
+    }
 
     // List of filtered items
     if (this.filteredItems.length === 0) {
@@ -146,7 +152,13 @@ export class FuzzySelector implements Component {
     }
 
     lines.push("");
-    lines.push(this.theme.hint("  Type to search · Enter: select · Esc: back"));
+    lines.push(
+      this.theme.hint(
+        this.useSearch
+          ? "  Type to search · Enter: select · Esc: back"
+          : "  ↑/↓: move · Enter: select · Esc: back",
+      ),
+    );
 
     return lines;
   }
@@ -169,7 +181,7 @@ export class FuzzySelector implements Component {
       this.selectCurrent();
     } else if (matchesKey(data, Key.escape)) {
       this.onDone();
-    } else {
+    } else if (this.useSearch) {
       // Delegate to input handler
       this.input.handleInput(data);
       this.updateFilter();

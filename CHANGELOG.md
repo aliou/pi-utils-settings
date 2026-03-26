@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.11.1
+
+### Patch Changes
+
+- 39f7085: fix: resolve type error in activeTabId assignment
+
 ## 0.11.0
 
 ### Minor Changes

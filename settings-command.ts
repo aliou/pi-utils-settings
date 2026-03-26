@@ -219,7 +219,7 @@ export function registerSettingsCommand<
       let activeTabId: string =
         enabledScopes.find((s) => configStore.hasConfig(s)) ??
         enabledScopes[0] ??
-        allTabs[0].id;
+        allTabs[0]!.id;
 
       const enabledScopeIds = new Set<Scope>(enabledScopes);
 

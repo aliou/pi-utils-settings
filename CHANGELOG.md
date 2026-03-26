@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.11.2
+
+### Patch Changes
+
+- b5d63f7: fix: add non-null assertion for noUncheckedIndexedAccess compat
+
 ## 0.11.1
 
 ### Patch Changes

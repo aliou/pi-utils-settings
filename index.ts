@@ -20,6 +20,7 @@ export {
   FuzzyMultiSelector,
   type FuzzyMultiSelectorItem,
   type FuzzyMultiSelectorOptions,
+  type FuzzyMultiSelectorSubOption,
 } from "./components/fuzzy-multi-selector";
 export {
   FuzzySelector,

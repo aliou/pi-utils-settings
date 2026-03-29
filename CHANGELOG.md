@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.12.0
+
+### Minor Changes
+
+- 9659754: Add subOptions support and showHints option to FuzzyMultiSelector
+
 ## 0.11.2
 
 ### Patch Changes

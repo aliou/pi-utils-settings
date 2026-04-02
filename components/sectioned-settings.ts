@@ -218,7 +218,7 @@ export class SectionedSettings implements Component {
       const usedWidth = prefixWidth + maxLabelWidth + visibleWidth(separator);
       const valueMaxWidth = width - usedWidth - 2;
       const valueText = this.theme.value(
-        truncateToWidth(item.currentValue, valueMaxWidth, ""),
+        truncateToWidth(String(item.currentValue ?? ""), valueMaxWidth, ""),
         isSelected,
       );
 

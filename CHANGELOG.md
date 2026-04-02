@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.12.1
+
+### Patch Changes
+
+- 9a53831: Fix crash when `currentValue` is not a string (e.g. boolean from config storage)
+
 ## 0.12.0
 
 ### Minor Changes

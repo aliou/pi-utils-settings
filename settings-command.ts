@@ -22,11 +22,7 @@ import {
   type SettingsSection,
 } from "./components/sectioned-settings";
 import type { ConfigStore, Scope } from "./config-loader";
-import {
-  displayToStorageValue,
-  getNestedValue,
-  setNestedValue,
-} from "./helpers";
+import { getNestedValue, setNestedValue } from "./helpers";
 import { getSettingsTheme, type SettingsTheme } from "./theme";
 
 /** Display labels for each scope */
@@ -120,9 +116,10 @@ export interface SettingsCommandOptions<
    * and a clone of the current tab config. Return the updated config,
    * or null to skip the change.
    *
-   * If not provided, the default handler maps boolean display values
-   * (enabled/disabled, on/off) to true/false and sets via dotted path.
-   * Enum strings (e.g. "pnpm") are stored as-is.
+   * If not provided, the default handler stores the raw string value as-is
+   * via dotted path. Use this to convert display values (e.g., "on"/"off")
+   * to storage types (booleans, numbers, etc.). Return null to fall through
+   * to the default string storage.
    */
   onSettingChange?: (
     id: string,
@@ -136,13 +133,14 @@ export interface SettingsCommandOptions<
   onSave?: (ctx: ExtensionCommandContext) => void | Promise<void>;
 }
 
-function defaultChangeHandler<TConfig extends object>(
+/** Default change handler: stores raw strings as-is via dotted path. */
+export function defaultChangeHandler<TConfig extends object>(
   id: string,
   newValue: string,
   config: TConfig,
 ): TConfig {
   const updated = structuredClone(config);
-  setNestedValue(updated, id, displayToStorageValue(newValue));
+  setNestedValue(updated, id, newValue);
   return updated;
 }
 

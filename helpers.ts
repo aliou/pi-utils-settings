@@ -39,23 +39,3 @@ export function getNestedValue(obj: object, path: string): unknown {
   }
   return target;
 }
-
-/**
- * Map a UI display value to its storage representation.
- *
- * "enabled" / "on"  -> true
- * "disabled" / "off" -> false
- * anything else      -> the string as-is (for enums like "pnpm")
- */
-export function displayToStorageValue(displayValue: string): unknown {
-  switch (displayValue) {
-    case "enabled":
-    case "on":
-      return true;
-    case "disabled":
-    case "off":
-      return false;
-    default:
-      return displayValue;
-  }
-}

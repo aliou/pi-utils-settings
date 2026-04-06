@@ -509,8 +509,10 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
     ],
 
     // --- Custom change handler ---
-    // Needed because fontSize and tabSize are numbers, not strings.
-    // The default handler would store "14" as a string.
+    // Needed because:
+    // - fontSize and tabSize are numbers, not strings
+    // - Boolean fields (showLineNumbers, autoSave, formatOnSave) use "on"/"off"
+    //   display values but should store as true/false in the config
     onSettingChange: (id, newValue, config) => {
       const updated = structuredClone(config);
 
@@ -529,8 +531,29 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
           };
           return updated;
         }
+        case "appearance.showLineNumbers": {
+          updated.appearance = {
+            ...updated.appearance,
+            showLineNumbers: newValue === "on",
+          };
+          return updated;
+        }
+        case "editor.autoSave": {
+          updated.editor = {
+            ...updated.editor,
+            autoSave: newValue === "on",
+          };
+          return updated;
+        }
+        case "editor.formatOnSave": {
+          updated.editor = {
+            ...updated.editor,
+            formatOnSave: newValue === "on",
+          };
+          return updated;
+        }
         default:
-          // Fall through to default handling for booleans/enums.
+          // Fall through to default handling for enums (strings stored as-is).
           return null;
       }
     },

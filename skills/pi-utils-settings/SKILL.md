@@ -150,7 +150,7 @@ Each item in `buildSections` needs:
 - `values`: Array of allowed string values (cycles on Enter/Space)
 - `description` (optional): Shown below the list when selected
 
-The default change handler maps `"on"`/`"enabled"` to `true`, `"off"`/`"disabled"` to `false`, and stores enum strings as-is. Override with `onSettingChange` for custom logic:
+The default change handler stores all values as raw strings (e.g., `"on"/"off"`, `"pnpm"`). Use `onSettingChange` to convert display values to the correct storage types (booleans, numbers, etc.):
 
 ```typescript
 onSettingChange: (id, newValue, config) => {
@@ -246,13 +246,10 @@ interface ConfigStore<TConfig, TResolved> {
 ## Helpers
 
 ```typescript
-import { setNestedValue, getNestedValue, displayToStorageValue } from "@aliou/pi-utils-settings";
+import { setNestedValue, getNestedValue } from "@aliou/pi-utils-settings";
 
 setNestedValue(obj, "a.b.c", true);    // obj.a.b.c = true (creates intermediates)
 getNestedValue(obj, "a.b.c");          // returns obj.a.b.c or undefined
-displayToStorageValue("on");            // true
-displayToStorageValue("off");           // false
-displayToStorageValue("pnpm");          // "pnpm"
 ```
 
 ## Setup Commands (Wizard Component)

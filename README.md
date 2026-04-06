@@ -115,6 +115,20 @@ registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
       ],
     },
   ],
+  // --- Optional: Custom change handler ---
+  // The default handler stores all values as raw strings ("on"/"off", "pnpm", etc).
+  // Use onSettingChange to convert display values to the correct storage types:
+  // - Booleans: newValue === "on" -> true
+  // - Numbers: Number.parseInt(newValue, 10)
+  // Return null to fall through to the default string storage.
+  onSettingChange: (id, newValue, config) => {
+    const updated = structuredClone(config);
+    if (id === "features.darkMode") {
+      updated.features = { ...updated.features, darkMode: newValue === "on" };
+      return updated;
+    }
+    return null; // Fall through for other fields
+  },
 });
 ```
 
@@ -312,7 +326,6 @@ interface ConfigStore<TConfig, TResolved> {
 
 - `setNestedValue(obj, "a.b.c", value)`: Set a deeply nested value by dot-separated path.
 - `getNestedValue(obj, "a.b.c")`: Get a deeply nested value by dot-separated path.
-- `displayToStorageValue(id, displayValue)`: Convert display values (`"enabled"/"disabled"`, `"on"/"off"`) to storage values (`true/false`).
 - `getSettingsTheme(theme)`: Build a combined settings theme (`SettingsTheme`) usable by both settings-list components and full-theme components like `Wizard`.
 
 ## Exports
@@ -333,7 +346,7 @@ export {
 } from "./components/settings-detail-editor";
 export { ArrayEditor, type ArrayEditorOptions } from "./components/array-editor";
 export { PathArrayEditor, type PathArrayEditorOptions } from "./components/path-array-editor";
-export { setNestedValue, getNestedValue, displayToStorageValue } from "./helpers";
+export { setNestedValue, getNestedValue } from "./helpers";
 export { buildSchemaUrl } from "./schema";
 export { getSettingsTheme, type SettingsTheme } from "./theme";
 ```

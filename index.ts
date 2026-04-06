@@ -8,7 +8,7 @@
  * - SectionedSettings: sectioned settings list component
  * - SettingsDetailEditor: focused second-level settings editor
  * - ArrayEditor: string array editor submenu component
- * - Helpers: nested value access, display-to-storage value mapping
+ * - Helpers: nested value access
  * - getSettingsTheme: combined settings-list + full Theme helper
  */
 
@@ -57,11 +57,7 @@ export {
   type Migration,
   type Scope,
 } from "./config-loader";
-export {
-  displayToStorageValue,
-  getNestedValue,
-  setNestedValue,
-} from "./helpers";
+export { getNestedValue, setNestedValue } from "./helpers";
 export { buildSchemaUrl } from "./schema";
 export {
   type ExtraSettingsTab,

@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.13.0
+
+### Minor Changes
+
+- cb080f5: Remove `displayToStorageValue` helper. The default change handler now stores raw strings as-is instead of coercing "on"/"off"/"enabled"/"disabled" to booleans. Use `onSettingChange` to convert display values to the correct storage types.
+
 ## 0.12.1
 
 ### Patch Changes

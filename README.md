@@ -1,3 +1,5 @@
+![banner](https://assets.aliou.me/pi-extensions/banners/pi-utils-settings.png)
+
 # @aliou/pi-utils-settings
 
 Shared settings infrastructure for [pi](https://github.com/mariozechner/pi-coding-agent) extensions. Provides config loading, a settings UI command with scope tabs plus optional extra tabs, and reusable TUI components.

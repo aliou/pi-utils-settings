@@ -1,6 +1,6 @@
-import type { SettingsListTheme } from "@mariozechner/pi-tui";
+import { CheckboxList, type CheckItem } from "@aliou/pi-utils-ui";
+import type { Theme } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import { FuzzyMultiSelector } from "./fuzzy-multi-selector";
 
 const DOWN = "\u001b[B";
 const UP = "\u001b[A";
@@ -8,17 +8,22 @@ const SPACE = " ";
 const CTRL_A = "\x01";
 const CTRL_X = "\x18";
 
-function createTheme(): SettingsListTheme {
+function createTheme(): Theme {
   return {
-    cursor: "> ",
-    label: (text: string) => text,
-    value: (text: string, _isSelected?: boolean) => text,
-    hint: (text: string) => text,
-    description: (text: string) => text,
-  } as unknown as SettingsListTheme;
+    fg: (_color: string, text: string) => text,
+    bg: (_color: string, text: string) => text,
+    bold: (text: string) => text,
+    italic: (text: string) => text,
+    underline: (text: string) => text,
+    inverse: (text: string) => text,
+    strikethrough: (text: string) => text,
+  } as unknown as Theme;
 }
 
-function makeItems(names: string[], subOpts?: Record<string, string[]>) {
+function makeItems(
+  names: string[],
+  subOpts?: Record<string, string[]>,
+): CheckItem[] {
   return names.map((name) => ({
     label: name,
     checked: false,
@@ -29,9 +34,9 @@ function makeItems(names: string[], subOpts?: Record<string, string[]>) {
   }));
 }
 
-describe("FuzzyMultiSelector", () => {
+describe("CheckboxList", () => {
   it("No sub-options, nothing checked: render should not contain 'Selected:'", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta", "Gamma"]),
       theme: createTheme(),
@@ -42,7 +47,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("Checking moves item to Selected section", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"]),
       theme: createTheme(),
@@ -73,7 +78,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("Sub-options appear indented under checked items", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"], { Alpha: ["Sub1", "Sub2"] }),
       theme: createTheme(),
@@ -90,7 +95,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("Space on sub-option toggles it without affecting parent", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"], { Alpha: ["Sub1"] }),
       theme: createTheme(),
@@ -114,7 +119,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("Unchecking parent hides sub-options", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"], { Alpha: ["Sub1"] }),
       theme: createTheme(),
@@ -145,7 +150,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("Fuzzy search only filters unchecked items", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta", "Gamma"]),
       theme: createTheme(),
@@ -170,7 +175,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("showHints false suppresses footer", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"]),
       theme: createTheme(),
@@ -182,7 +187,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("showHints true (default) shows footer", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"]),
       theme: createTheme(),
@@ -193,7 +198,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("getCheckedItems returns only checked top-level items", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta", "Gamma"]),
       theme: createTheme(),
@@ -212,7 +217,7 @@ describe("FuzzyMultiSelector", () => {
   });
 
   it("Ctrl+A/Ctrl+X only affect top-level items", () => {
-    const selector = new FuzzyMultiSelector({
+    const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"], { Alpha: ["Sub1"] }),
       theme: createTheme(),

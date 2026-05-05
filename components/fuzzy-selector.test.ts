@@ -1,28 +1,30 @@
-import type { SettingsListTheme } from "@mariozechner/pi-tui";
+import { FuzzyPicker } from "@aliou/pi-utils-ui";
+import type { Theme } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { FuzzySelector } from "./fuzzy-selector";
 
 const DOWN = "\u001b[B";
 const UP = "\u001b[A";
 const ENTER = "\r";
 const ESC = "\u001b";
 
-function createTheme(): SettingsListTheme {
+function createTheme(): Theme {
   return {
-    cursor: "> ",
-    label: (text: string) => text,
-    value: (text: string) => text,
-    hint: (text: string) => text,
-    description: (text: string) => text,
-  } as unknown as SettingsListTheme;
+    fg: (_color: string, text: string) => text,
+    bg: (_color: string, text: string) => text,
+    bold: (text: string) => text,
+    italic: (text: string) => text,
+    underline: (text: string) => text,
+    inverse: (text: string) => text,
+    strikethrough: (text: string) => text,
+  } as unknown as Theme;
 }
 
-describe("FuzzySelector", () => {
+describe("FuzzyPicker", () => {
   it("uses plain list mode at or below threshold and selects with arrows", () => {
     const onSelect = vi.fn();
     const onDone = vi.fn();
 
-    const selector = new FuzzySelector({
+    const selector = new FuzzyPicker({
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma"],
       theme: createTheme(),
@@ -46,7 +48,7 @@ describe("FuzzySelector", () => {
   it("uses fuzzy mode above threshold and filters", () => {
     const onSelect = vi.fn();
 
-    const selector = new FuzzySelector({
+    const selector = new FuzzyPicker({
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma", "Delta"],
       theme: createTheme(),
@@ -66,7 +68,7 @@ describe("FuzzySelector", () => {
   it("respects currentValue pre-selection in plain list mode", () => {
     const onSelect = vi.fn();
 
-    const selector = new FuzzySelector({
+    const selector = new FuzzyPicker({
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma"],
       currentValue: "Gamma",
@@ -83,7 +85,7 @@ describe("FuzzySelector", () => {
   it("respects currentValue pre-selection in fuzzy mode when query is empty", () => {
     const onSelect = vi.fn();
 
-    const selector = new FuzzySelector({
+    const selector = new FuzzyPicker({
       label: "Pick",
       items: [
         "Alpha",

@@ -10,16 +10,16 @@
  */
 
 import {
-  FuzzySelector,
+  FuzzyPicker,
   Wizard,
   type WizardStepContext,
 } from "@aliou/pi-utils-settings";
 import type {
   ExtensionAPI,
   ExtensionContext,
+  Theme,
 } from "@mariozechner/pi-coding-agent";
-import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
-import type { Component, SettingsListTheme } from "@mariozechner/pi-tui";
+import type { Component } from "@mariozechner/pi-tui";
 import { Input, Key, matchesKey } from "@mariozechner/pi-tui";
 import { configLoader, type ExampleConfig } from "../config";
 
@@ -38,14 +38,14 @@ interface WizardState {
 // markComplete()/markIncomplete() to update progress indicators.
 
 class ThemeStep implements Component {
-  private selector: FuzzySelector;
+  private selector: FuzzyPicker;
 
   constructor(
     state: WizardState,
-    settingsTheme: SettingsListTheme,
+    uiTheme: Theme,
     wizardCtx: WizardStepContext,
   ) {
-    this.selector = new FuzzySelector({
+    this.selector = new FuzzyPicker({
       label: "Pick a theme",
       items: [
         "dark",
@@ -60,7 +60,7 @@ class ThemeStep implements Component {
         "tokyo-night",
       ],
       currentValue: state.theme ?? undefined,
-      theme: settingsTheme,
+      theme: uiTheme,
       onSelect: (selected) => {
         state.theme = selected;
         wizardCtx.markComplete();
@@ -88,14 +88,14 @@ class ThemeStep implements Component {
 
 class FavoriteStep implements Component {
   private input: Input;
-  private settingsTheme: SettingsListTheme;
+  private uiTheme: Theme;
 
   constructor(
     private state: WizardState,
-    settingsTheme: SettingsListTheme,
+    uiTheme: Theme,
     wizardCtx: WizardStepContext,
   ) {
-    this.settingsTheme = settingsTheme;
+    this.uiTheme = uiTheme;
     this.input = new Input();
     if (state.favorite) this.input.setValue(state.favorite);
 
@@ -110,16 +110,16 @@ class FavoriteStep implements Component {
 
   render(width: number): string[] {
     const lines: string[] = [];
-    lines.push(this.settingsTheme.label(" Add a favorite", true));
+    lines.push(this.uiTheme.fg("accent", ` Add a favorite`));
     lines.push("");
     lines.push(
-      this.settingsTheme.hint("  Enter an item (optional, Enter to confirm):"),
+      this.uiTheme.fg("dim", "  Enter an item (optional, Enter to confirm):"),
     );
     lines.push(`  ${this.input.render(width - 4).join("")}`);
 
     if (this.state.favorite) {
       lines.push("");
-      lines.push(this.settingsTheme.hint(`  Current: ${this.state.favorite}`));
+      lines.push(this.uiTheme.fg("dim", `  Current: ${this.state.favorite}`));
     }
 
     return lines;
@@ -139,15 +139,15 @@ class EditorFeaturesStep implements Component {
     value: keyof WizardState;
     selected: boolean;
   }>;
-  private settingsTheme: SettingsListTheme;
+  private uiTheme: Theme;
   private selectedIndex = 0;
 
   constructor(
     private state: WizardState,
-    settingsTheme: SettingsListTheme,
+    uiTheme: Theme,
     wizardCtx: WizardStepContext,
   ) {
-    this.settingsTheme = settingsTheme;
+    this.uiTheme = uiTheme;
     this.items = [
       { label: "Auto save", value: "autoSave", selected: state.autoSave },
       {
@@ -162,19 +162,18 @@ class EditorFeaturesStep implements Component {
 
   render(_width: number): string[] {
     const lines: string[] = [];
-    lines.push(this.settingsTheme.label(" Editor features", true));
+    lines.push(this.uiTheme.fg("accent", " Editor features"));
     lines.push("");
 
     for (let i = 0; i < this.items.length; i++) {
       const item = this.items[i];
       if (!item) continue;
       const isSelected = i === this.selectedIndex;
-      const prefix = isSelected ? this.settingsTheme.cursor : "  ";
+      const prefix = isSelected ? this.uiTheme.fg("accent", "→ ") : "  ";
       const check = item.selected ? "[x]" : "[ ]";
-      const label = this.settingsTheme.value(
-        `${check} ${item.label}`,
-        isSelected,
-      );
+      const label = isSelected
+        ? this.uiTheme.fg("accent", `${check} ${item.label}`)
+        : this.uiTheme.fg("muted", `${check} ${item.label}`);
       lines.push(`${prefix}${label}`);
     }
 
@@ -214,7 +213,6 @@ export function registerExampleSetup(
   pi.registerCommand("example:setup", {
     description: "First-time setup wizard for example extension",
     handler: async (_args, ctx) => {
-      const settingsTheme = getSettingsListTheme();
       const currentConfig = configLoader.getConfig();
 
       // Shared state across all wizard steps
@@ -237,18 +235,17 @@ export function registerExampleSetup(
               build: (wizardCtx) => {
                 // Pre-mark complete if we have a default
                 if (state.theme) wizardCtx.markComplete();
-                return new ThemeStep(state, settingsTheme, wizardCtx);
+                return new ThemeStep(state, uiTheme, wizardCtx);
               },
             },
             {
               label: "Favorite",
-              build: (wizardCtx) =>
-                new FavoriteStep(state, settingsTheme, wizardCtx),
+              build: (wizardCtx) => new FavoriteStep(state, uiTheme, wizardCtx),
             },
             {
               label: "Editor",
               build: (wizardCtx) =>
-                new EditorFeaturesStep(state, settingsTheme, wizardCtx),
+                new EditorFeaturesStep(state, uiTheme, wizardCtx),
             },
           ],
         });

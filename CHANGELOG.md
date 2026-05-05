@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.14.0
+
+### Minor Changes
+
+- 405e0e5: Update settings editor components to render inside shared `@aliou/pi-utils-ui` panels while preserving the existing pi-utils-settings component APIs.
+
 ## 0.13.0
 
 ### Minor Changes

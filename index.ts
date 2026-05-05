@@ -12,36 +12,25 @@
  * - getSettingsTheme: combined settings-list + full Theme helper
  */
 
-// Backward-compatible aliases
-export type {
-  CheckboxListOptions as FuzzyMultiSelectorOptions,
-  CheckItem as FuzzyMultiSelectorItem,
-  CheckSubOption as FuzzyMultiSelectorSubOption,
-  FuzzyPickerOptions as FuzzySelectorOptions,
-} from "@aliou/pi-utils-ui";
-// Re-export UI components from pi-utils-ui
 export {
   ArrayEditor,
   type ArrayEditorOptions,
-  CheckboxList,
-  CheckboxList as FuzzyMultiSelector,
-  type CheckboxListOptions,
-  type CheckItem,
-  type CheckSubOption,
-  FuzzyPicker,
-  FuzzyPicker as FuzzySelector,
-  type FuzzyPickerOptions,
-  getPickerTheme,
+} from "./components/array-editor";
+export {
+  FuzzyMultiSelector,
+  type FuzzyMultiSelectorItem,
+  type FuzzyMultiSelectorOptions,
+  type FuzzyMultiSelectorSubOption,
+} from "./components/fuzzy-multi-selector";
+export {
+  FuzzySelector,
+  type FuzzySelectorOptions,
+} from "./components/fuzzy-selector";
+export {
   PathArrayEditor,
   type PathArrayEditorOptions,
-  type PickerTheme,
-  Wizard,
-  type WizardOptions,
-  type WizardStep,
-  type WizardStepContext,
-} from "@aliou/pi-utils-ui";
+} from "./components/path-array-editor";
 
-// Local components (settings-domain)
 export {
   SectionedSettings,
   type SectionedSettingsOptions,
@@ -57,6 +46,12 @@ export {
   type SettingsDetailSubmenuField,
   type SettingsDetailTextField,
 } from "./components/settings-detail-editor";
+export {
+  Wizard,
+  type WizardOptions,
+  type WizardStep,
+  type WizardStepContext,
+} from "./components/wizard";
 export {
   ConfigLoader,
   type ConfigStore,

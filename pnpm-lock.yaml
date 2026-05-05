@@ -4,20 +4,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@aliou/pi-utils-ui': link:../pi-utils-ui
-
 importers:
 
   .:
-    dependencies:
-      '@aliou/pi-utils-ui':
-        specifier: link:../pi-utils-ui
-        version: link:../pi-utils-ui
     devDependencies:
       '@aliou/biome-plugins':
         specifier: ^0.4.0
         version: 0.4.1(@biomejs/biome@2.4.5)
+      '@aliou/pi-utils-ui':
+        specifier: ^0.3.0
+        version: 0.3.0(@mariozechner/pi-coding-agent@0.67.4(ws@8.19.0)(zod@3.25.76))(@mariozechner/pi-tui@0.67.4)
       '@biomejs/biome':
         specifier: ^2.4.3
         version: 2.4.5
@@ -46,6 +42,17 @@ packages:
     resolution: {integrity: sha512-olz6H9lENsZ7KqA1O+yYtL9PaCkD++ryVKGxZ46KvHReBANIt2Vx2hCjS6lxmL2/fBKJ8ce0gquRrjhYVoDg1w==}
     peerDependencies:
       '@biomejs/biome': '>=2.0.0'
+
+  '@aliou/pi-utils-ui@0.3.0':
+    resolution: {integrity: sha512-KZEOSRzXBZg9bz/C7owXsehIHfiZ4iep4ync0wp6QwRqQh04lTuNGqSw7I6QH89xbwE7ipULN0uQanyqm6wVqg==}
+    peerDependencies:
+      '@mariozechner/pi-coding-agent': '>=0.61.0 <1'
+      '@mariozechner/pi-tui': '>=0.61.0 <1'
+    peerDependenciesMeta:
+      '@mariozechner/pi-coding-agent':
+        optional: true
+      '@mariozechner/pi-tui':
+        optional: true
 
   '@anthropic-ai/sdk@0.73.0':
     resolution: {integrity: sha512-URURVzhxXGJDGUGFunIOtBlSl7KWvZiAAKY/ttTkZAkXT9bTPqdk2eK0b8qqSxXpikh3QKPnPYpiyX98zf5ebw==}
@@ -2055,6 +2062,11 @@ snapshots:
   '@aliou/biome-plugins@0.4.1(@biomejs/biome@2.4.5)':
     dependencies:
       '@biomejs/biome': 2.4.5
+
+  '@aliou/pi-utils-ui@0.3.0(@mariozechner/pi-coding-agent@0.67.4(ws@8.19.0)(zod@3.25.76))(@mariozechner/pi-tui@0.67.4)':
+    optionalDependencies:
+      '@mariozechner/pi-coding-agent': 0.67.4(ws@8.19.0)(zod@3.25.76)
+      '@mariozechner/pi-tui': 0.67.4
 
   '@anthropic-ai/sdk@0.73.0(zod@3.25.76)':
     dependencies:

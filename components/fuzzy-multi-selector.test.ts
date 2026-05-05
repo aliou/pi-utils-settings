@@ -1,6 +1,9 @@
-import { CheckboxList, type CheckItem } from "@aliou/pi-utils-ui";
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import type { SettingsListTheme } from "@mariozechner/pi-tui";
 import { describe, expect, it } from "vitest";
+import {
+  FuzzyMultiSelector as CheckboxList,
+  type FuzzyMultiSelectorItem as CheckItem,
+} from "./fuzzy-multi-selector";
 
 const DOWN = "\u001b[B";
 const UP = "\u001b[A";
@@ -8,16 +11,14 @@ const SPACE = " ";
 const CTRL_A = "\x01";
 const CTRL_X = "\x18";
 
-function createTheme(): Theme {
+function createTheme(): SettingsListTheme {
   return {
-    fg: (_color: string, text: string) => text,
-    bg: (_color: string, text: string) => text,
-    bold: (text: string) => text,
-    italic: (text: string) => text,
-    underline: (text: string) => text,
-    inverse: (text: string) => text,
-    strikethrough: (text: string) => text,
-  } as unknown as Theme;
+    label: (text: string) => text,
+    value: (text: string) => text,
+    description: (text: string) => text,
+    cursor: "→ ",
+    hint: (text: string) => text,
+  };
 }
 
 function makeItems(

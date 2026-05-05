@@ -10,7 +10,8 @@
  */
 
 import {
-  FuzzyPicker,
+  FuzzySelector,
+  getSettingsTheme,
   Wizard,
   type WizardStepContext,
 } from "@aliou/pi-utils-settings";
@@ -38,14 +39,14 @@ interface WizardState {
 // markComplete()/markIncomplete() to update progress indicators.
 
 class ThemeStep implements Component {
-  private selector: FuzzyPicker;
+  private selector: FuzzySelector;
 
   constructor(
     state: WizardState,
     uiTheme: Theme,
     wizardCtx: WizardStepContext,
   ) {
-    this.selector = new FuzzyPicker({
+    this.selector = new FuzzySelector({
       label: "Pick a theme",
       items: [
         "dark",
@@ -60,7 +61,7 @@ class ThemeStep implements Component {
         "tokyo-night",
       ],
       currentValue: state.theme ?? undefined,
-      theme: uiTheme,
+      theme: getSettingsTheme(uiTheme),
       onSelect: (selected) => {
         state.theme = selected;
         wizardCtx.markComplete();

@@ -1,4 +1,3 @@
-import { getPickerTheme, type PickerTheme } from "@aliou/pi-utils-ui";
 import {
   getSettingsListTheme,
   type Theme,
@@ -28,5 +27,3 @@ export function getSettingsTheme(theme: Theme): SettingsTheme {
 
   return combined;
 }
-
-export { getPickerTheme, type PickerTheme };

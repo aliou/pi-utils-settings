@@ -36,14 +36,13 @@
     "version": "changeset version",
     "release": "pnpm changeset publish"
   },
+  "dependencies": {
+    "@aliou/pi-utils-ui": "^0.3.0"
+  },
   "peerDependencies": {
-    "@aliou/pi-utils-ui": "^0.3.0",
     "@mariozechner/pi-coding-agent": ">=0.61.0 <1"
   },
   "peerDependenciesMeta": {
-    "@aliou/pi-utils-ui": {
-      "optional": true
-    },
     "@mariozechner/pi-coding-agent": {
       "optional": true
     }

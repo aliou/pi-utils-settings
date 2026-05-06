@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.14.1
+
+### Patch Changes
+
+- 17e3b5e: Make `@aliou/pi-utils-ui` a regular dependency instead of an optional peer dependency.
+
 ## 0.14.0
 
 ### Minor Changes

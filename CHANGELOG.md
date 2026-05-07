@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.15.1
+
+### Patch Changes
+
+- 3e9eede: fix: resolve type errors and bump @aliou/pi-utils-ui to ^0.4.1
+
 ## 0.15.0
 
 ### Minor Changes

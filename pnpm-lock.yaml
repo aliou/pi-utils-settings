@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@aliou/pi-utils-ui':
-        specifier: ^0.4.0
-        version: 0.4.0(@earendil-works/pi-coding-agent@0.74.0(ws@8.19.0)(zod@3.25.76))(@earendil-works/pi-tui@0.74.0)
+        specifier: ^0.4.1
+        version: 0.4.1(@earendil-works/pi-coding-agent@0.74.0(ws@8.19.0)(zod@3.25.76))(@earendil-works/pi-tui@0.74.0)
     devDependencies:
       '@aliou/biome-plugins':
         specifier: ^0.4.0
@@ -44,8 +44,8 @@ packages:
     peerDependencies:
       '@biomejs/biome': '>=2.0.0'
 
-  '@aliou/pi-utils-ui@0.4.0':
-    resolution: {integrity: sha512-hG0lh6pvuxZVvaDhNvW6feh8t8pJgPyU2+uhUXy2qXTFNBLpH3itK3AoWkPQ95YwUm782Fxe9nvzFnK9wl7IMg==}
+  '@aliou/pi-utils-ui@0.4.1':
+    resolution: {integrity: sha512-1oJraVjjlZD8UM41472MF1O8a41/4OvAxdH/HlQsahZH/gBkhahGw/EjlcVqXTWnCQfo+4X6PksRz63erNsPwQ==}
     peerDependencies:
       '@earendil-works/pi-coding-agent': '>=0.74.0 <1'
       '@earendil-works/pi-tui': '>=0.74.0 <1'
@@ -2054,7 +2054,7 @@ snapshots:
     dependencies:
       '@biomejs/biome': 2.4.5
 
-  '@aliou/pi-utils-ui@0.4.0(@earendil-works/pi-coding-agent@0.74.0(ws@8.19.0)(zod@3.25.76))(@earendil-works/pi-tui@0.74.0)':
+  '@aliou/pi-utils-ui@0.4.1(@earendil-works/pi-coding-agent@0.74.0(ws@8.19.0)(zod@3.25.76))(@earendil-works/pi-tui@0.74.0)':
     optionalDependencies:
       '@earendil-works/pi-coding-agent': 0.74.0(ws@8.19.0)(zod@3.25.76)
       '@earendil-works/pi-tui': 0.74.0

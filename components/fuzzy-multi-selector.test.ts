@@ -112,8 +112,8 @@ describe("CheckboxList", () => {
     selector.handleInput(SPACE);
 
     const items = selector.getItems();
-    expect(items[0].checked).toBe(true);
-    expect(items[0].subOptions?.[0].checked).toBe(true);
+    expect(items[0]!.checked).toBe(true);
+    expect(items[0]!.subOptions?.[0]!.checked).toBe(true);
 
     const rendered = selector.render(80).join("\n");
     expect(rendered).toContain("    [x] Sub1");
@@ -213,8 +213,8 @@ describe("CheckboxList", () => {
 
     const checked = selector.getCheckedItems();
     expect(checked).toHaveLength(2);
-    expect(checked[0].label).toBe("Alpha");
-    expect(checked[1].label).toBe("Gamma");
+    expect(checked[0]!.label).toBe("Alpha");
+    expect(checked[1]!.label).toBe("Gamma");
   });
 
   it("Ctrl+A/Ctrl+X only affect top-level items", () => {
@@ -232,23 +232,23 @@ describe("CheckboxList", () => {
     selector.handleInput(SPACE);
 
     let items = selector.getItems();
-    expect(items[0].checked).toBe(true);
-    expect(items[0].subOptions?.[0].checked).toBe(true);
+    expect(items[0]!.checked).toBe(true);
+    expect(items[0]!.subOptions?.[0]!.checked).toBe(true);
 
     // Ctrl+A to select all
     selector.handleInput(CTRL_A);
 
     items = selector.getItems();
-    expect(items[0].checked).toBe(true); // Alpha
-    expect(items[0].subOptions?.[0].checked).toBe(true); // Sub1 unchanged
-    expect(items[1].checked).toBe(true); // Beta
+    expect(items[0]!.checked).toBe(true); // Alpha
+    expect(items[0]!.subOptions?.[0]!.checked).toBe(true); // Sub1 unchanged
+    expect(items[1]!.checked).toBe(true); // Beta
 
     // Ctrl+X to clear all
     selector.handleInput(CTRL_X);
 
     items = selector.getItems();
-    expect(items[0].checked).toBe(false); // Alpha
-    expect(items[0].subOptions?.[0].checked).toBe(true); // Sub1 unchanged
-    expect(items[1].checked).toBe(false); // Beta
+    expect(items[0]!.checked).toBe(false); // Alpha
+    expect(items[0]!.subOptions?.[0]!.checked).toBe(true); // Sub1 unchanged
+    expect(items[1]!.checked).toBe(false); // Beta
   });
 });

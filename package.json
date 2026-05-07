@@ -37,7 +37,7 @@
     "release": "pnpm changeset publish"
   },
   "dependencies": {
-    "@aliou/pi-utils-ui": "^0.4.0"
+    "@aliou/pi-utils-ui": "^0.4.1"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.74.0 <1"
@@ -48,7 +48,7 @@
     }
   },
   "devDependencies": {
-    "@aliou/pi-utils-ui": "^0.4.0",
+    "@aliou/pi-utils-ui": "^0.4.1",
     "@aliou/biome-plugins": "^0.4.0",
     "@biomejs/biome": "^2.4.3",
     "@changesets/cli": "^2.27.11",

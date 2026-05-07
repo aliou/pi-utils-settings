@@ -175,6 +175,7 @@ export class FuzzyMultiSelector implements Component {
 
         for (let i = 0; i < navigableList.length; i++) {
           const entry = navigableList[i];
+          if (!entry) continue;
           if (entry.type === "item" && entry.item.checked) {
             selectedEntries.push({ entry, navIndex: i });
           } else if (entry.type === "subOption") {
@@ -239,7 +240,8 @@ export class FuzzyMultiSelector implements Component {
           // Find cursor position within unchecked section
           let cursorInUnchecked = -1;
           for (let i = 0; i < uncheckedEntries.length; i++) {
-            if (uncheckedEntries[i].navIndex === this.selectedIndex) {
+            const e = uncheckedEntries[i];
+            if (e && e.navIndex === this.selectedIndex) {
               cursorInUnchecked = i;
               break;
             }
@@ -267,7 +269,9 @@ export class FuzzyMultiSelector implements Component {
           i < endIndex && i < uncheckedEntries.length;
           i++
         ) {
-          const { entry, navIndex } = uncheckedEntries[i];
+          const e = uncheckedEntries[i];
+          if (!e) continue;
+          const { entry, navIndex } = e;
           const isSelected = navIndex === this.selectedIndex;
           const prefix = isSelected ? this.theme.cursor : "  ";
           const prefixWidth = visibleWidth(prefix);
@@ -299,7 +303,8 @@ export class FuzzyMultiSelector implements Component {
           // Find cursor position within unchecked section for the indicator
           let cursorInUnchecked = -1;
           for (let i = 0; i < uncheckedEntries.length; i++) {
-            if (uncheckedEntries[i].navIndex === this.selectedIndex) {
+            const e = uncheckedEntries[i];
+            if (e && e.navIndex === this.selectedIndex) {
               cursorInUnchecked = i;
               break;
             }

@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.15.0
+
+### Minor Changes
+
+- af07e77: Update dependencies to use `@earendil-works/pi-` packages and bump `@aliou/pi-utils-ui` to v0.4.0
+
 ## 0.14.1
 
 ### Patch Changes

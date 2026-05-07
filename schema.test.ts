@@ -6,7 +6,7 @@ import { buildSchemaUrl } from "./schema";
 
 // Mock getAgentDir - will be configured per test via mockReturnValue
 const mockGetAgentDir = vi.fn(() => "");
-vi.mock("@mariozechner/pi-coding-agent", () => ({
+vi.mock("@earendil-works/pi-coding-agent", () => ({
   getAgentDir: () => mockGetAgentDir(),
 }));
 

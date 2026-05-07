@@ -1,4 +1,4 @@
-import type { Component, SettingsListTheme } from "@mariozechner/pi-tui";
+import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
   SettingsDetailEditor,

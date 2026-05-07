@@ -1,4 +1,4 @@
-import type { SettingsListTheme } from "@mariozechner/pi-tui";
+import type { SettingsListTheme } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
   FuzzyMultiSelector as CheckboxList,

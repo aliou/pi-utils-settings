@@ -1,4 +1,4 @@
-import type { Component, SettingsListTheme } from "@mariozechner/pi-tui";
+import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import {
   Input,
   Key,
@@ -6,7 +6,7 @@ import {
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 
 interface SettingsDetailFieldBase {
   id: string;

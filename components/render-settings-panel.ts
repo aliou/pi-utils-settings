@@ -1,5 +1,5 @@
 import { Panel } from "@aliou/pi-utils-ui";
-import type { Component, SettingsListTheme } from "@mariozechner/pi-tui";
+import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 
 class RenderBody implements Component {
   constructor(private renderBody: (width: number) => string[]) {}

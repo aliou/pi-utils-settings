@@ -245,7 +245,7 @@ import {
   SettingsDetailEditor,
   type SettingsDetailField,
 } from "@aliou/pi-utils-settings";
-import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
+import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 
 const fields: SettingsDetailField[] = [
   {

@@ -1,14 +1,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Component, SettingsListTheme } from "@mariozechner/pi-tui";
+import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import {
   Input,
   Key,
   matchesKey,
   truncateToWidth,
   visibleWidth,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import { renderSettingsPanel } from "./render-settings-panel";
 
 export interface PathArrayEditorOptions {

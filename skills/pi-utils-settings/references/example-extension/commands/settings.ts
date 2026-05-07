@@ -22,7 +22,7 @@ import {
   registerSettingsCommand,
   SettingsDetailEditor,
 } from "@aliou/pi-utils-settings";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   configLoader,
   type ExampleConfig,

@@ -11,7 +11,7 @@
  * - Scrolls when items exceed maxVisible
  */
 
-import type { Component, SettingsListTheme } from "@mariozechner/pi-tui";
+import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import {
   fuzzyFilter,
   Input,
@@ -19,7 +19,7 @@ import {
   matchesKey,
   truncateToWidth,
   visibleWidth,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import { renderSettingsPanel } from "./render-settings-panel";
 
 export interface FuzzyMultiSelectorSubOption {

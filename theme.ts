@@ -1,8 +1,8 @@
 import {
   getSettingsListTheme,
   type Theme,
-} from "@mariozechner/pi-coding-agent";
-import type { SettingsListTheme } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import type { SettingsListTheme } from "@earendil-works/pi-tui";
 
 /**
  * Combined settings theme that supports both:

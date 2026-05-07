@@ -168,7 +168,7 @@ For arrays or complex values, use `submenu` instead of `values`:
 
 ```typescript
 import { ArrayEditor, PathArrayEditor } from "@aliou/pi-utils-settings";
-import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
+import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 
 {
   id: "tags",

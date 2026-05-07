@@ -37,23 +37,23 @@
     "release": "pnpm changeset publish"
   },
   "dependencies": {
-    "@aliou/pi-utils-ui": "^0.3.0"
+    "@aliou/pi-utils-ui": "^0.4.0"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": ">=0.61.0 <1"
+    "@earendil-works/pi-coding-agent": ">=0.74.0 <1"
   },
   "peerDependenciesMeta": {
-    "@mariozechner/pi-coding-agent": {
+    "@earendil-works/pi-coding-agent": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@aliou/pi-utils-ui": "^0.3.0",
+    "@aliou/pi-utils-ui": "^0.4.0",
     "@aliou/biome-plugins": "^0.4.0",
     "@biomejs/biome": "^2.4.3",
     "@changesets/cli": "^2.27.11",
-    "@mariozechner/pi-coding-agent": "0.67.4",
-    "@mariozechner/pi-tui": "0.67.4",
+    "@earendil-works/pi-coding-agent": "0.74.0",
+    "@earendil-works/pi-tui": "0.74.0",
     "@types/node": "^25.0.10",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"

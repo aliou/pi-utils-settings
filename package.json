@@ -19,7 +19,9 @@
     "*.ts",
     "components",
     "skills",
-    "README.md"
+    "README.md",
+    "!*.test.ts",
+    "!components/**/*.test.ts"
   ],
   "pi": {
     "skills": [
@@ -49,8 +51,8 @@
   },
   "devDependencies": {
     "@aliou/pi-utils-ui": "^0.4.1",
-    "@aliou/biome-plugins": "^0.4.0",
-    "@biomejs/biome": "^2.4.3",
+    "@aliou/biome-plugins": "^0.8.1",
+    "@biomejs/biome": "^2.4.15",
     "@changesets/cli": "^2.27.11",
     "@earendil-works/pi-coding-agent": "0.74.0",
     "@earendil-works/pi-tui": "0.74.0",

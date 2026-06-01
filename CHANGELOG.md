@@ -1,5 +1,12 @@
 # @aliou/pi-utils-settings
 
+## 0.16.0
+
+### Minor Changes
+
+- 923804e: Allow `buildSchemaUrl` callers to customize schema hosting URLs with `baseUrl` or `template` options.
+- ec86921: Add `onBeforeClose` to intercept settings UI close requests before discarding drafts.
+
 ## 0.15.1
 
 ### Patch Changes

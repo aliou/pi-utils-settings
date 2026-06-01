@@ -99,7 +99,7 @@ new ConfigLoader("my-ext", defaults, {
 
 Creates a `/name:settings` command with scope tabs (Global/Local/Memory), draft-based editing, and Ctrl+S to save.
 
-All changes (boolean toggles, enum cycling, submenu edits) are held in memory as drafts. Nothing is written to disk until the user presses Ctrl+S. Esc exits without saving. Dirty tabs show a `*` marker.
+All changes (boolean toggles, enum cycling, submenu edits) are held in memory as drafts. Nothing is written to disk until the user presses Ctrl+S. Esc exits without saving by default. Dirty tabs show a `*` marker. Use `onBeforeClose` to intercept Esc, for example to confirm discarding unsaved drafts.
 
 ```typescript
 import { registerSettingsCommand, type SettingsSection } from "@aliou/pi-utils-settings";
@@ -136,6 +136,8 @@ registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
     }
     return null; // Fall through for other fields
   },
+  // Optional: return false to keep the settings UI open on Esc.
+  onBeforeClose: (isDirty) => !isDirty,
 });
 ```
 

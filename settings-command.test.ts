@@ -1,10 +1,148 @@
-import { describe, expect, it } from "vitest";
-import { defaultChangeHandler } from "./settings-command";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@earendil-works/pi-coding-agent", () => ({
+  getSettingsListTheme: () => ({
+    label: (value: string) => value,
+    value: (value: string) => value,
+    description: (value: string) => value,
+    cursor: "> ",
+    hint: (value: string) => value,
+  }),
+}));
+
+import {
+  defaultChangeHandler,
+  registerSettingsCommand,
+  type SettingsCommandOptions,
+} from "./settings-command";
 
 interface TestConfig {
   feature?: string;
   nested?: { value?: string };
 }
+
+const ENTER = "\r";
+const ESC = "\u001b";
+
+function makeSettingsHarness(
+  overrides: Partial<SettingsCommandOptions<TestConfig, TestConfig>> = {},
+) {
+  let handler: ((args: unknown, ctx: unknown) => Promise<void>) | undefined;
+  let component: { handleInput?: (data: string) => void } | undefined;
+  const done = vi.fn();
+  const notify = vi.fn();
+
+  const pi = {
+    registerCommand: vi.fn(
+      (
+        _name: string,
+        command: { handler: (args: unknown, ctx: unknown) => Promise<void> },
+      ) => {
+        handler = command.handler;
+      },
+    ),
+  };
+
+  const configStore = {
+    getEnabledScopes: () => ["global"],
+    hasConfig: () => true,
+    getRawConfig: () => ({ feature: "off" }),
+    getConfig: () => ({ feature: "off" }),
+    save: vi.fn(),
+  };
+
+  registerSettingsCommand(pi as never, {
+    commandName: "test:settings",
+    title: "Test Settings",
+    configStore: configStore as never,
+    buildSections: (tabConfig) => [
+      {
+        label: "General",
+        items: [
+          {
+            id: "feature",
+            label: "Feature",
+            currentValue: tabConfig?.feature ?? "off",
+            values: ["off", "on"],
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  });
+
+  const ctx = {
+    hasUI: true,
+    ui: {
+      notify,
+      custom: vi.fn((factory: (...args: unknown[]) => unknown) => {
+        component = factory(
+          { requestRender: vi.fn() },
+          {},
+          undefined,
+          done,
+        ) as typeof component;
+      }),
+    },
+  };
+
+  return {
+    async open() {
+      await handler?.([], ctx);
+      if (!component) throw new Error("settings component was not created");
+      return component;
+    },
+    done,
+    notify,
+  };
+}
+
+describe("registerSettingsCommand", () => {
+  it("preserves close behavior when no onBeforeClose hook is provided", async () => {
+    const harness = makeSettingsHarness();
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+    component.handleInput?.(ESC);
+
+    expect(harness.done).toHaveBeenCalledWith(undefined);
+  });
+
+  it("keeps the settings UI open when onBeforeClose returns false", async () => {
+    const onBeforeClose = vi.fn(() => false);
+    const harness = makeSettingsHarness({ onBeforeClose });
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+    component.handleInput?.(ESC);
+
+    expect(onBeforeClose).toHaveBeenCalledWith(true);
+    expect(harness.done).not.toHaveBeenCalled();
+  });
+
+  it("closes the settings UI when onBeforeClose returns true", async () => {
+    const onBeforeClose = vi.fn(() => true);
+    const harness = makeSettingsHarness({ onBeforeClose });
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+    component.handleInput?.(ESC);
+
+    expect(onBeforeClose).toHaveBeenCalledWith(true);
+    expect(harness.done).toHaveBeenCalledWith(undefined);
+  });
+
+  it("passes false to onBeforeClose when there are no drafts", async () => {
+    const onBeforeClose = vi.fn(() => false);
+    const harness = makeSettingsHarness({ onBeforeClose });
+    const component = await harness.open();
+
+    component.handleInput?.(ESC);
+
+    expect(onBeforeClose).toHaveBeenCalledWith(false);
+    expect(harness.done).not.toHaveBeenCalled();
+  });
+});
 
 describe("defaultChangeHandler", () => {
   it("stores raw string values as-is", () => {

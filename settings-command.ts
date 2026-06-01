@@ -127,6 +127,11 @@ export interface SettingsCommandOptions<
     config: TConfig,
   ) => TConfig | null;
   /**
+   * Called before the settings UI closes via top-level Esc.
+   * Return false to keep the UI open, for example to confirm discarding drafts.
+   */
+  onBeforeClose?: (isDirty: boolean) => boolean;
+  /**
    * Called after save succeeds. Use this to reload runtime state
    * that was captured at extension init time.
    */
@@ -167,6 +172,7 @@ export function registerSettingsCommand<
     configStore,
     buildSections,
     onSettingChange,
+    onBeforeClose,
     onSave,
   } = options;
   const description =
@@ -277,6 +283,14 @@ export function registerSettingsCommand<
           return enabledScopes.some((scope) => drafts[scope] !== null);
         }
 
+        function requestClose(): void {
+          if (onBeforeClose && !onBeforeClose(isDirty())) {
+            tui.requestRender();
+            return;
+          }
+          done(undefined);
+        }
+
         function getSectionsForTab(tabId: string): SettingsSection[] {
           const resolved = configStore.getConfig();
 
@@ -327,7 +341,7 @@ export function registerSettingsCommand<
               }
               handleExtraTabChange(id);
             },
-            () => done(undefined),
+            requestClose,
             { enableSearch: true, hideHint: true },
           );
         }
@@ -518,6 +532,11 @@ export function registerSettingsCommand<
           },
           handleInput(data: string) {
             const hasActiveSubmenu = settings?.hasActiveSubmenu() ?? false;
+
+            if (matchesKey(data, Key.escape) && !hasActiveSubmenu) {
+              requestClose();
+              return;
+            }
 
             // Ctrl+S: save all dirty scope tabs, unless a submenu is open.
             if (matchesKey(data, Key.ctrl("s")) && !hasActiveSubmenu) {

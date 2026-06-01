@@ -52,6 +52,11 @@ import pkg from "../package.json" with { type: "json" };
 
 const schemaUrl = buildSchemaUrl(pkg.name, pkg.version);
 
+// If the schema is hosted outside npm/unpkg, provide a custom template:
+const githubSchemaUrl = buildSchemaUrl("aliou/my-extension", "v1.0.0", {
+  template: "https://raw.githubusercontent.com/{packageName}/{version}/{schemaPath}",
+});
+
 export const configLoader = new ConfigLoader<MyConfig, ResolvedConfig>(
   "my-extension",
   defaults,
@@ -59,7 +64,7 @@ export const configLoader = new ConfigLoader<MyConfig, ResolvedConfig>(
 );
 ```
 
-When `schemaUrl` is set, `save()` writes `$schema` as the first key in the JSON file. `load()` strips it before returning config to callers. The config types stay clean.
+When `schemaUrl` is set, `save()` writes `$schema` as the first key in the JSON file. `load()` strips it before returning config to callers. The config types stay clean. `buildSchemaUrl` defaults to unpkg, but supports `baseUrl` for npm-compatible hosts and `template` for GitHub raw URLs or other public hosts.
 
 ## 4. Add `check:schema` to CI
 

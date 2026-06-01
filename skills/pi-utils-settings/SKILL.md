@@ -336,7 +336,7 @@ Typical extension file structure:
 my-extension/
   index.ts       # activate() calls configLoader.load(), registers commands
   config.ts      # ConfigLoader + types + migrations + buildSchemaUrl
-  schema.json    # auto-generated JSON Schema (committed, shipped via npm)
+  schema.json    # auto-generated JSON Schema (committed, hosted publicly)
   commands/
     settings.ts  # registerSettingsCommand (edit existing config)
     setup.ts     # optional: multi-step wizard for first-time config

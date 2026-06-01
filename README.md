@@ -57,6 +57,11 @@ import pkg from "./package.json";
 
 const schemaUrl = buildSchemaUrl(pkg.name, pkg.version);
 
+// For schemas hosted outside npm/unpkg, use a custom template:
+const githubSchemaUrl = buildSchemaUrl("aliou/my-extension", "v1.0.0", {
+  template: "https://raw.githubusercontent.com/{packageName}/{version}/{schemaPath}",
+});
+
 const loader = new ConfigLoader<MyConfig, ResolvedConfig>(
   "my-extension",
   defaults,
@@ -75,7 +80,7 @@ To generate the schema from your `TConfig` type, add these scripts to your exten
 }
 ```
 
-Run `pnpm gen:schema` to produce `schema.json`, commit it, and add `"schema.json"` to `files` in `package.json` so it ships with your npm package. Add `check:schema` to CI to catch drift.
+Run `pnpm gen:schema` to produce `schema.json`, commit it, and add `"schema.json"` to `files` in `package.json` so it ships with your npm package. Add `check:schema` to CI to catch drift. If the extension is not published to npm, commit `schema.json` somewhere public and pass a custom `template` or `baseUrl` to `buildSchemaUrl`.
 
 An optional `afterMerge` hook runs after the deep merge for logic that can't be expressed as a simple merge (e.g., one field replacing another):
 

@@ -119,6 +119,7 @@ const migrations: Migration<ExampleConfig>[] = [
 // In a real extension, import name and version from package.json:
 //   import pkg from "../package.json";
 //   const schemaUrl = buildSchemaUrl(pkg.name, pkg.version);
+// Use buildSchemaUrl(..., { template }) when hosting the schema outside unpkg.
 const schemaUrl = buildSchemaUrl("@aliou/example-extension", "1.0.0");
 
 // --- Loader ---

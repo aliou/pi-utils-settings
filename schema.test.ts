@@ -25,6 +25,26 @@ describe("buildSchemaUrl", () => {
       "https://unpkg.com/my-pkg@1.0.0/schemas/config.json",
     );
   });
+
+  it("accepts custom base URL", () => {
+    expect(
+      buildSchemaUrl("my-pkg", "1.0.0", {
+        baseUrl: "https://cdn.example.com/npm/",
+        schemaPath: "schemas/config.json",
+      }),
+    ).toBe("https://cdn.example.com/npm/my-pkg@1.0.0/schemas/config.json");
+  });
+
+  it("accepts custom URL template", () => {
+    expect(
+      buildSchemaUrl("aliou/pi-linear", "v1.0.0", {
+        template:
+          "https://raw.githubusercontent.com/{packageName}/{version}/{schemaPath}",
+      }),
+    ).toBe(
+      "https://raw.githubusercontent.com/aliou/pi-linear/v1.0.0/schema.json",
+    );
+  });
 });
 
 describe("ConfigLoader $schema round-trip", () => {

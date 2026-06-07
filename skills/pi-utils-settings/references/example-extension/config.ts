@@ -103,6 +103,8 @@ const migrations: Migration<ExampleConfig>[] = [
   {
     name: "rename-font-size",
     shouldRun: (config) => "fontsize" in (config.appearance ?? {}),
+    message: (before) =>
+      `[example] Config migrated: appearance.fontsize renamed to appearance.fontSize (was ${(before.appearance as Record<string, unknown>)?.fontsize}).`,
     run: (config, _filePath) => {
       const appearance = config.appearance ?? {};
       const fontSize = (appearance as Record<string, unknown>).fontsize;

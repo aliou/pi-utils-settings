@@ -26,6 +26,17 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 export type Scope = "global" | "local" | "memory";
 
 /**
+ * Function that produces an optional migration message.
+ * Receives the config before and after the migration ran.
+ * Return undefined to skip the message.
+ */
+export type MigrationMessageFactory<TConfig> = (
+  before: TConfig,
+  after: TConfig,
+  filePath: string,
+) => string | undefined;
+
+/**
  * A migration that transforms a config from one version to another.
  * Migrations are applied in order during load(). If any migration
  * returns a modified config, the result is saved back to disk.
@@ -35,6 +46,13 @@ export interface Migration<TConfig> {
   name: string;
   /** Return true if this migration should run on the given config. */
   shouldRun: (config: TConfig) => boolean;
+  /**
+   * Optional user-facing message emitted when this migration
+   * successfully runs. Evaluated against the pre-migration config.
+   * If a function is provided, it receives the config before
+   * the migration's run() is called.
+   */
+  message?: string | MigrationMessageFactory<TConfig>;
   /**
    * Transform the config. Receives the file path for backup/logging.
    * Return the migrated config.
@@ -90,6 +108,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   private localConfig: TConfig | null = null;
   private memoryConfig: TConfig | null = null;
   private resolved: TResolved | null = null;
+  private pendingMessages: string[] = [];
 
   private readonly scopes: Scope[];
   private readonly globalPath: string | null;
@@ -217,6 +236,11 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     return [...this.scopes];
   }
 
+  /** Drain (remove and return) all pending migration messages. */
+  drainMessages(): string[] {
+    return this.pendingMessages.splice(0);
+  }
+
   /** Save config and reload state (except memory which just updates in place). */
   async save(scope: Scope, config: TConfig): Promise<void> {
     if (!this.hasScope(scope)) {
@@ -270,9 +294,22 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
 
     for (const migration of this.migrations) {
       if (!migration.shouldRun(current)) continue;
+
+      const before = current;
+
       try {
         current = await migration.run(current, filePath);
         changed = true;
+
+        const message = this.resolveMigrationMessage(
+          migration,
+          before,
+          current,
+          filePath,
+        );
+        if (message) {
+          this.pendingMessages.push(message);
+        }
       } catch (error) {
         console.error(
           `[settings] Migration "${migration.name}" failed for ${filePath}: ${error}`,
@@ -291,6 +328,26 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     }
 
     return current;
+  }
+
+  private resolveMigrationMessage(
+    migration: Migration<TConfig>,
+    before: TConfig,
+    after: TConfig,
+    filePath: string,
+  ): string | undefined {
+    if (!migration.message) return undefined;
+
+    try {
+      return typeof migration.message === "function"
+        ? migration.message(before, after, filePath)
+        : migration.message;
+    } catch (error) {
+      console.error(
+        `[settings] Failed to build migration message "${migration.name}" for ${filePath}: ${error}`,
+      );
+      return undefined;
+    }
   }
 
   private merge(): TResolved {

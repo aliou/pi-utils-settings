@@ -26,7 +26,14 @@ export default async function activate(pi: ExtensionAPI) {
   // 3. Register setup command: /example:setup
   registerExampleSetup(pi, handleConfigChange);
 
-  // 4. Use config at runtime
+  // 4. Drain migration messages and display them to the user
+  pi.on("session_start", (_event, ctx) => {
+    for (const message of configLoader.drainMessages()) {
+      ctx.ui.notify(message, "warning");
+    }
+  });
+
+  // 5. Use config at runtime
   // Ready to use config.appearance.theme, config.editor, etc.
 }
 

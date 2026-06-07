@@ -56,6 +56,7 @@ export {
   ConfigLoader,
   type ConfigStore,
   type Migration,
+  type MigrationMessageFactory,
   type Scope,
 } from "./config-loader";
 export { getNestedValue, setNestedValue } from "./helpers";

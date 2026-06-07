@@ -248,6 +248,52 @@ const migrations: Migration<MyConfig>[] = [
 new ConfigLoader("my-ext", defaults, { migrations });
 ```
 
+### Migration messages
+
+Migrations can declare an optional `message` that is queued when the migration runs successfully. Extensions drain these messages and display them to the user (e.g. via `ctx.ui.notify` in `session_start`).
+
+```typescript
+// Static message — always shown when the migration runs
+{
+  name: "remove-legacy-field",
+  shouldRun: (c) => "legacyField" in c,
+  message: "[my-ext] legacyField has been removed from config.",
+  run: (c) => { const { legacyField, ...rest } = c as any; return rest; },
+}
+
+// Dynamic message — function receives before and after config
+{
+  name: "rename-toolchain",
+  shouldRun: (c) => c.packageManager !== undefined,
+  message: (before, after) =>
+    `packageManager renamed to toolchain (was ${before.packageManager}, now ${after.toolchain})`,
+  run: (c) => { const { packageManager, ...rest } = c as any; return { ...rest, toolchain: packageManager }; },
+}
+
+// Conditional message — return undefined to skip
+{
+  name: "strip-deprecated",
+  shouldRun: (c) => "deprecatedField" in c,
+  message: (before) =>
+    (before as any).deprecatedField !== undefined
+      ? "deprecatedField has been removed."
+      : undefined,
+  run: (c) => { const { deprecatedField, ...rest } = c as any; return rest; },
+}
+```
+
+Display pending messages in your extension's `session_start` hook:
+
+```typescript
+pi.on("session_start", (_event, ctx) => {
+  for (const message of configLoader.drainMessages()) {
+    ctx.ui.notify(message, "warning");
+  }
+});
+```
+
+Messages are only queued when the migration succeeds. Failed migrations do not produce messages, and message factory errors are caught gracefully (logged to console, not queued).
+
 ## afterMerge Hook
 
 For post-merge logic that cannot be expressed as a simple deep merge:

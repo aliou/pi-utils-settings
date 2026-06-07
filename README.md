@@ -340,9 +340,9 @@ interface ConfigStore<TConfig, TResolved> {
 ## Exports
 
 ```typescript
-export { ConfigLoader, type ConfigStore, type Migration } from "./config-loader";
-export { registerSettingsCommand, type SettingsCommandOptions } from "./settings-command";
-export { SectionedSettings, type SectionedSettingsOptions, type SettingsSection } from "./components/sectioned-settings";
+export { ConfigLoader, type ConfigStore, type Migration } from "./src/config-loader";
+export { registerSettingsCommand, type SettingsCommandOptions } from "./src/settings-command";
+export { SectionedSettings, type SectionedSettingsOptions, type SettingsSection } from "./src/components/sectioned-settings";
 export {
   SettingsDetailEditor,
   type SettingsDetailActionField,
@@ -352,10 +352,10 @@ export {
   type SettingsDetailField,
   type SettingsDetailSubmenuField,
   type SettingsDetailTextField,
-} from "./components/settings-detail-editor";
-export { ArrayEditor, type ArrayEditorOptions } from "./components/array-editor";
-export { PathArrayEditor, type PathArrayEditorOptions } from "./components/path-array-editor";
-export { setNestedValue, getNestedValue } from "./helpers";
-export { buildSchemaUrl } from "./schema";
-export { getSettingsTheme, type SettingsTheme } from "./theme";
+} from "./src/components/settings-detail-editor";
+export { ArrayEditor, type ArrayEditorOptions } from "./src/components/array-editor";
+export { PathArrayEditor, type PathArrayEditorOptions } from "./src/components/path-array-editor";
+export { setNestedValue, getNestedValue } from "./src/helpers";
+export { buildSchemaUrl } from "./src/schema";
+export { getSettingsTheme, type SettingsTheme } from "./src/theme";
 ```

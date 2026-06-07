@@ -6,7 +6,7 @@
   "license": "MIT",
   "description": "Shared settings UI and config loader for pi extensions",
   "exports": {
-    ".": "./index.ts"
+    ".": "./src/index.ts"
   },
   "repository": {
     "type": "git",
@@ -16,12 +16,10 @@
     "access": "public"
   },
   "files": [
-    "*.ts",
-    "components",
+    "src",
     "skills",
     "README.md",
-    "!*.test.ts",
-    "!components/**/*.test.ts"
+    "!src/**/*.test.ts"
   ],
   "pi": {
     "skills": [

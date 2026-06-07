@@ -103,7 +103,7 @@ const migrations: Migration<ExampleConfig>[] = [
   {
     name: "rename-font-size",
     shouldRun: (config) => "fontsize" in (config.appearance ?? {}),
-    run: (config) => {
+    run: (config, _filePath) => {
       const appearance = config.appearance ?? {};
       const fontSize = (appearance as Record<string, unknown>).fontsize;
       const { fontsize: _, ...rest } = appearance as Record<string, unknown>;
@@ -128,10 +128,10 @@ export const configLoader = new ConfigLoader<
   ExampleConfig,
   ResolvedExampleConfig
 >("example-extension", DEFAULT_CONFIG, {
-  scopes: ["global", "local"],
+  scopes: ["global", "local", "memory"],
   migrations,
   schemaUrl,
-  afterMerge: (resolved, _global, local) => {
+  afterMerge: (resolved, _global, local, _memory) => {
     // Example: local ignorePaths replace global rather than merge
     if (local?.ignorePaths) {
       resolved.ignorePaths = local.ignorePaths;

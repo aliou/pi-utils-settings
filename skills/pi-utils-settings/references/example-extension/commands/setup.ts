@@ -214,6 +214,8 @@ export function registerExampleSetup(
   pi.registerCommand("example:setup", {
     description: "First-time setup wizard for example extension",
     handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+
       const currentConfig = configLoader.getConfig();
 
       // Shared state across all wizard steps
@@ -228,6 +230,10 @@ export function registerExampleSetup(
         return new Wizard({
           title: "Example Setup",
           theme: uiTheme,
+          // minContentHeight: keep the wizard height stable across steps
+          minContentHeight: 10,
+          // hintSuffix: extra text appended to the controls line
+          hintSuffix: "first-time setup",
           onComplete: () => done(true),
           onCancel: () => done(false),
           steps: [

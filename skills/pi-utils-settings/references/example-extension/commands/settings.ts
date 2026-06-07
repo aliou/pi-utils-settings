@@ -9,20 +9,25 @@
  * - Submenu items with ArrayEditor (string arrays)
  * - Submenu items with PathArrayEditor (filesystem paths + tab completion)
  * - Submenu items with FuzzySelector (single-select from large list)
+ * - Submenu items with FuzzyMultiSelector (multi-select checklist with locked/recommended)
  * - Submenu items with SettingsDetailEditor (focused second-level panel)
  * - Array-of-objects editing pattern using nested SettingsDetailEditor panels
  * - Custom onSettingChange handler for non-string values
+ * - onBeforeClose to prevent closing with unsaved drafts
  * - onSave callback for reloading runtime state
  */
 
 import {
   ArrayEditor,
+  FuzzyMultiSelector,
+  type FuzzyMultiSelectorItem,
   FuzzySelector,
   PathArrayEditor,
   registerSettingsCommand,
   SettingsDetailEditor,
 } from "@aliou/pi-utils-settings";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
 import {
   configLoader,
   type ExampleConfig,
@@ -88,6 +93,8 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   items: AVAILABLE_THEMES,
                   currentValue: theme,
                   theme: ctx.theme,
+                  // searchThreshold: 7 by default, switch to fuzzy search above this item count
+                  // maxVisible: 10 by default, items shown before scrolling
                   onSelect: (selected) => {
                     const current = tabConfig ?? ({} as ExampleConfig);
                     const updated: ExampleConfig = {
@@ -112,13 +119,13 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
               values: ["12", "14", "16", "18", "20"],
               description: "Editor font size in pixels.",
             },
-            // Boolean toggle: on/off
+            // Boolean toggle: on/off — description shows ctx.scope and ctx.isInherited
             {
               id: "appearance.showLineNumbers",
               label: "Line numbers",
               currentValue: showLineNumbers ? "on" : "off",
               values: ["on", "off"],
-              description: "Show line numbers in the gutter.",
+              description: `Show line numbers in the gutter. (scope: ${ctx.scope}${ctx.isInherited("appearance.showLineNumbers") ? ", inherited" : ""})`,
             },
           ],
         },
@@ -336,6 +343,8 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   label: "Ignored Paths",
                   items: [...currentArray],
                   theme: ctx.theme,
+                  // baseDir: process.cwd() by default, resolved relative to this
+                  baseDir: process.cwd(),
                   validatePath: (value) => {
                     if (value.includes("..")) {
                       return "Relative parent paths not allowed";
@@ -358,6 +367,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                 });
               },
             },
+            // Profiles: array-of-objects with nested SettingsDetailEditor
             {
               id: "profiles",
               label: "Profiles",
@@ -472,6 +482,65 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                 });
               },
             },
+            // FuzzyMultiSelector submenu: multi-select checklist with locked/recommended items
+            {
+              id: "profileToggles",
+              label: "Toggle profiles",
+              currentValue: `${profiles.filter((p) => p.enabled).length}/${profiles.length} on`,
+              description:
+                "FuzzyMultiSelector demo. Enable/disable profiles with locked and recommended items.",
+              submenu: (_current, done) => {
+                const current = tabConfig ?? ({} as ExampleConfig);
+                const items: FuzzyMultiSelectorItem[] = profiles.map(
+                  (profile) => ({
+                    label: profile.name ?? "Unnamed",
+                    description: `Theme: ${profile.name ?? "Unnamed"}`,
+                    checked: profile.enabled ?? false,
+                    locked: false,
+                    recommended: profile.name === "Primary",
+                  }),
+                );
+                // Lock the first profile to demonstrate locked items
+                if (items.length > 0) {
+                  const first = items[0];
+                  if (first) {
+                    first.locked = true;
+                    first.lockedBy = "default";
+                  }
+                }
+
+                const selector = new FuzzyMultiSelector({
+                  label: "Toggle Profiles",
+                  theme: ctx.theme,
+                  items,
+                  onToggle: (_item) => {
+                    // Keep draft in sync on every toggle
+                    const updated: ExampleConfig = {
+                      ...current,
+                      profiles: profiles.map((p, i) => ({
+                        ...p,
+                        enabled: items[i]?.checked ?? p.enabled,
+                      })),
+                    };
+                    ctx.setDraft(updated);
+                  },
+                });
+
+                // FuzzyMultiSelector has no onDone callback.
+                // Wrap it to close the submenu on Esc.
+                return {
+                  render: (width: number) => selector.render(width),
+                  handleInput: (data: string) => {
+                    if (matchesKey(data, Key.escape)) {
+                      done(undefined);
+                      return;
+                    }
+                    selector.handleInput(data);
+                  },
+                  invalidate: () => selector.invalidate?.(),
+                };
+              },
+            },
           ],
         },
       ];
@@ -556,6 +625,13 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
           // Fall through to default handling for enums (strings stored as-is).
           return null;
       }
+    },
+
+    // --- Prevent closing with unsaved drafts ---
+    onBeforeClose: (isDirty) => {
+      // Return false to keep the settings UI open.
+      // Use this to confirm discarding unsaved changes.
+      return !isDirty;
     },
 
     // --- Post-save callback ---

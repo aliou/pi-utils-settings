@@ -6,7 +6,7 @@ Public package with shared settings infrastructure for Pi extensions.
 
 - Config loading and migration (`ConfigLoader`)
 - Reusable settings UIs (`registerSettingsCommand`, `SectionedSettings`, `SettingsDetailEditor`)
-- Shared editors (`ArrayEditor`, `PathArrayEditor`, `FuzzySelector`, `Wizard`)
+- Shared editors/components (`ArrayEditor`, `PathArrayEditor`, `FuzzySelector`, `FuzzyMultiSelector`, `Wizard`)
 
 ## Rules
 

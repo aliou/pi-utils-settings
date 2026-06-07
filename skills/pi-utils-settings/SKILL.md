@@ -53,7 +53,7 @@ registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
   commandName: "my-ext:settings",
   title: "My Extension Settings",
   configStore: configLoader,
-  buildSections: (tabConfig, resolved, { setDraft, scope }) => [
+  buildSections: (tabConfig, resolved) => [
     {
       label: "General",
       items: [
@@ -67,7 +67,29 @@ registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
       ],
     },
   ],
+  // Required for non-string config values. The default handler stores
+  // raw strings ("on"/"off"), but booleans need explicit conversion.
+  // Return null for unhandled IDs.
+  onSettingChange: (id, newValue, config) => {
+    const updated = structuredClone(config);
+    if (id === "features.darkMode") {
+      updated.features ??= {};
+      updated.features.darkMode = newValue === "on";
+      return updated;
+    }
+    return null;
+  },
 });
+```
+
+The `buildSections` callback receives a third `ctx` argument:
+
+```typescript
+buildSections: (tabConfig, resolved, ctx) => { ... }
+// ctx.setDraft(config)          — store a draft for the active scope
+// ctx.scope                     — current scope ("global" | "local" | "memory")
+// ctx.isInherited(path)         — true if the dotted path has no value in the current scope
+// ctx.theme                     — SettingsTheme (works as both SettingsListTheme and full Theme)
 ```
 
 ### Extra top-level tabs (non-scope)
@@ -81,6 +103,8 @@ const extraTabs: ExtraSettingsTab<MyConfig, ResolvedConfig>[] = [
   {
     id: "examples",
     label: "Examples",
+    // buildSections context: { resolved, setDraftForScope, getDraftForScope,
+    //   getRawForScope, enabledScopes, theme }
     buildSections: ({ resolved, enabledScopes, getRawForScope }) => [
       {
         label: "Info",
@@ -142,55 +166,66 @@ The settings UI shows one tab per enabled scope. You can also add non-scope top-
 
 ## Adding Settings Items
 
-Each item in `buildSections` needs:
+Each item needs `id`, `label`, and `currentValue`. For interaction, provide either:
 
-- `id`: Dot-separated path matching config structure (e.g. `"features.darkMode"`)
-- `label`: Display name
-- `currentValue`: Current display value as string
-- `values`: Array of allowed string values (cycles on Enter/Space)
-- `description` (optional): Shown below the list when selected
+- `values`: Array of allowed string values (cycles on Enter/Space) — for toggles and enums
+- `submenu`: Factory `(currentValue, done) => Component` — for complex editors (arrays, objects, fuzzy selectors)
 
-The default change handler stores all values as raw strings (e.g., `"on"/"off"`, `"pnpm"`). Use `onSettingChange` to convert display values to the correct storage types (booleans, numbers, etc.):
+`description` is optional and shown below the list when the item is selected.
+
+The default change handler stores all values as raw strings (e.g., `"on"/"off"`, `"pnpm"`). Use `onSettingChange` to convert display values to the correct storage types (booleans, numbers, etc.). Return the updated config, or `null` for unhandled IDs:
 
 ```typescript
 onSettingChange: (id, newValue, config) => {
   const updated = structuredClone(config);
   if (id === "refreshInterval") {
     updated.refreshInterval = parseInt(newValue, 10);
+    return updated;
   }
-  return updated;
+  return null;
 },
 ```
 
 ### Submenu Items
 
-For arrays or complex values, use `submenu` instead of `values`:
+For arrays or complex values, use `submenu` instead of `values`. Inside `buildSections`, use `ctx.theme` (a `SettingsTheme` that works as both `SettingsListTheme` and full `Theme`):
 
 ```typescript
 import { ArrayEditor, PathArrayEditor } from "@aliou/pi-utils-settings";
-import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 
+// Inside buildSections(tabConfig, resolved, ctx):
+const current = tabConfig ?? ({} as MyConfig);
+const tags = current.tags ?? resolved.tags;
+
+// ... in items array:
 {
   id: "tags",
   label: "Tags",
   currentValue: `${tags.length} items`,
-  submenu: (_val, done) => {
-    const current = tabConfig ?? ({} as MyConfig);
-    return new ArrayEditor({
+  submenu: (_val, done) =>
+    new ArrayEditor({
       label: "Tags",
-      items: [...(current.tags ?? resolved.tags)],
-      theme: getSettingsListTheme(),
+      items: [...tags],
+      theme: ctx.theme,
       onSave: (items) => {
         ctx.setDraft({ ...current, tags: items });
         done(`${items.length} items`);
       },
       onDone: () => done(undefined), // undefined = no change
-    });
-  },
+    }),
 }
 ```
 
 `PathArrayEditor` is identical but adds Tab completion for filesystem paths. Accepts optional `validatePath` hook.
+
+When building components outside `registerSettingsCommand` (e.g., inside `ctx.ui.custom`), use `getSettingsTheme(theme)` to create a combined theme:
+
+```typescript
+import { getSettingsTheme } from "@aliou/pi-utils-settings";
+
+// Inside ctx.ui.custom((_tui, uiTheme, _kb, done) => { ... })
+const settingsTheme = getSettingsTheme(uiTheme);
+```
 
 ## Migrations
 
@@ -203,7 +238,7 @@ const migrations: Migration<MyConfig>[] = [
   {
     name: "rename-field",
     shouldRun: (config) => "oldField" in config,
-    run: (config) => {
+    run: (config, _filePath) => {
       const { oldField, ...rest } = config as any;
       return { ...rest, newField: oldField };
     },
@@ -228,11 +263,32 @@ new ConfigLoader("my-ext", defaults, {
 });
 ```
 
-## ConfigStore Interface
-
-Extensions with custom storage can implement `ConfigStore` directly instead of using `ConfigLoader`:
+## registerSettingsCommand Options
 
 ```typescript
+registerSettingsCommand(pi, {
+  commandName,             // e.g. "my-ext:settings"
+  commandDescription,     // optional: command palette text
+  title,                  // header shown in the settings UI
+  configStore,            // ConfigLoader or custom ConfigStore
+  buildSections,          // (tabConfig, resolved, ctx) => SettingsSection[]
+  extraTabs,              // optional: non-scope tabs (e.g. Examples, Help)
+  onSettingChange,        // convert display strings to typed config values
+  onBeforeClose,          // (isDirty) => boolean; return false to prevent closing
+  onSave,                 // (ctx) => void; called after Ctrl+S saves; use to reload runtime
+});
+```
+
+- `onSave(ctx)` is called after a successful save. Use it to reload runtime state.
+- `onBeforeClose(isDirty)` lets you prevent closing with unsaved drafts (return `false` to keep open).
+
+## ConfigStore Interface
+
+Extensions with custom storage can implement `ConfigStore` directly instead of using `ConfigLoader`. `Scope` is exported as `"global" | "local" | "memory"`.
+
+```typescript
+import type { Scope, ConfigStore } from "@aliou/pi-utils-settings";
+
 interface ConfigStore<TConfig, TResolved> {
   getConfig(): TResolved;
   getRawConfig(scope: Scope): TConfig | null;
@@ -292,14 +348,15 @@ pi.registerCommand("my-ext:setup", {
 ```
 
 Each step is a `Component` that receives a `WizardStepContext`:
-- `markComplete()` — fills the step's progress dot (●)
-- `markIncomplete()` — clears it (○)
-- `goNext()` — advance to the next step (call after selection/submit)
+- `markComplete()` / `markIncomplete()` — fill or clear the step's progress dot (●/○)
+- `goNext()` — advance to the next step
 - `goPrev()` — go back to the previous step
 
 The Wizard handles borders, tab rendering, and global navigation (Tab/Shift+Tab between steps, Ctrl+S to submit, Esc to cancel). Step components should NOT handle Esc or Tab. Steps should call `goNext()` after the user completes them (e.g. after Enter selects a value).
 
 Steps write into shared mutable state. After `onComplete` fires, read the state and save.
+
+Wizard options: `title`, `steps`, `theme`, `onComplete`, `onCancel`, `minContentHeight` (minimum lines for the step area), `hintSuffix` (extra hint text).
 
 ## Components
 
@@ -309,10 +366,11 @@ This package includes TUI components for use in settings UIs and setup wizards. 
 |----------------------|------------------------------------------------|
 | `Wizard`             | Multi-step setup with tabbed navigation + borders |
 | `SectionedSettings`  | Grouped settings list with search and submenus |
+| `SettingsDetailEditor` | Focused second-level editor for one selected item |
 | `ArrayEditor`        | Edit a `string[]` (add/edit/delete)            |
 | `PathArrayEditor`    | Same as ArrayEditor + Tab path completion      |
 | `FuzzySelector`      | Fuzzy-searchable single-select list            |
-| `FuzzyMultiSelector` | Fuzzy-searchable multi-select checklist         |
+| `FuzzyMultiSelector` | Fuzzy-searchable multi-select checklist with locked/recommended items and sub-options |
 
 These components implement the pi-tui `Component` interface (`render`, `handleInput`, `invalidate`). They are designed for use inside `registerSettingsCommand` submenus or `ctx.ui.custom` calls.
 
@@ -326,7 +384,34 @@ All changes are held as in-memory drafts until Ctrl+S. Esc exits without saving.
 
 Extensions can ship a JSON Schema so editors provide autocomplete and validation for settings files. The schema is auto-generated from the `TConfig` interface via `ts-json-schema-generator`, and `ConfigLoader` injects a `$schema` field into saved files.
 
-See `references/json-schema.md` for the full setup guide: JSDoc conventions, `gen:schema`/`check:schema` scripts, `buildSchemaUrl` wiring, CI integration, and testing commands.
+See `references/json-schema.md` (relative to this skill directory) for the full setup guide: JSDoc conventions, `gen:schema`/`check:schema` scripts, `buildSchemaUrl` wiring, CI integration, and testing commands.
+
+## Pi Extension Wiring
+
+`pi` is the `ExtensionAPI` passed to your extension's `activate` function:
+
+```typescript
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+export default async function activate(pi: ExtensionAPI) {
+  await configLoader.load();
+  registerSettingsCommand(pi, { /* ... */ });
+}
+```
+
+For Wizard commands, the handler receives a `ctx` with `ctx.ui.custom` for custom UI rendering. Check `ctx.hasUI` before using it:
+
+```typescript
+pi.registerCommand("my-ext:setup", {
+  description: "First-time setup wizard",
+  handler: async (_args, ctx) => {
+    if (!ctx.hasUI) return;
+    const result = await ctx.ui.custom((_tui, uiTheme, _kb, done) => {
+      return new Wizard({ /* ... */ });
+    });
+  },
+});
+```
 
 ## Full Pattern
 
@@ -342,4 +427,4 @@ my-extension/
     setup.ts     # optional: multi-step wizard for first-time config
 ```
 
-A complete reference extension is bundled at `references/example-extension/`. It demonstrates every feature: config types, migrations, afterMerge, settings command with scope tabs plus an extra non-scope tab, all item types (toggles, enums, submenus with ArrayEditor/PathArrayEditor/FuzzySelector), setup wizard using the Wizard component with tabbed steps, and the activation pattern.
+A complete reference extension is bundled at `references/example-extension/` (relative to this skill directory). It demonstrates every feature: config types, migrations, afterMerge, settings command with scope tabs plus an extra non-scope tab, all item types (toggles, enums, submenus with ArrayEditor/PathArrayEditor/FuzzySelector), setup wizard using the Wizard component with tabbed steps, and the activation pattern.

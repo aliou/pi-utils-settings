@@ -16,7 +16,7 @@ pnpm add @aliou/pi-utils-settings
 
 ### ConfigLoader
 
-Generic JSON config loader with global + project scopes, deep merge, and versioned migrations.
+Generic JSON config loader with global + local (project) scopes, deep merge, and versioned migrations.
 
 ```typescript
 import { ConfigLoader, type Migration } from "@aliou/pi-utils-settings";
@@ -33,7 +33,7 @@ const migrations: Migration<MyConfig>[] = [
   {
     name: "v1-upgrade",
     shouldRun: (config) => !config.features,
-    run: (config) => ({ ...config, features: {} }),
+    run: (config, _filePath) => ({ ...config, features: {} }),
   },
 ];
 
@@ -44,7 +44,7 @@ const configLoader = new ConfigLoader<MyConfig, ResolvedConfig>(
 );
 
 await configLoader.load();
-const config = configLoader.getConfig(); // ResolvedConfig (defaults merged with global + project)
+const config = configLoader.getConfig(); // ResolvedConfig (defaults merged with global + local)
 ```
 
 #### JSON Schema support
@@ -86,9 +86,9 @@ An optional `afterMerge` hook runs after the deep merge for logic that can't be 
 
 ```typescript
 new ConfigLoader("my-ext", defaults, {
-  afterMerge: (resolved, global, project) => {
-    if (project?.customField) {
-      resolved.derivedField = project.customField;
+  afterMerge: (resolved, global, local, memory) => {
+    if (local?.customField) {
+      resolved.derivedField = local.customField;
     }
     return resolved;
   },
@@ -318,9 +318,11 @@ Extensions with custom config loaders can implement `ConfigStore` directly inste
 ```typescript
 interface ConfigStore<TConfig, TResolved> {
   getConfig(): TResolved;
-  getRawConfig(scope: "global" | "project"): TConfig | null;
-  hasConfig(scope: "global" | "project"): boolean;
-  save(scope: "global" | "project", config: TConfig): Promise<void>;
+  getRawConfig(scope: Scope): TConfig | null;
+  hasScope(scope: Scope): boolean;
+  hasConfig(scope: Scope): boolean;
+  getEnabledScopes(): Scope[];
+  save(scope: Scope, config: TConfig): Promise<void>;
 }
 ```
 
@@ -330,32 +332,72 @@ interface ConfigStore<TConfig, TResolved> {
 - **SettingsDetailEditor**: Focused second-level editor for one selected item (text, enum, boolean, nested submenu, destructive action).
 - **ArrayEditor**: String array editor with add/remove/reorder.
 - **PathArrayEditor**: Path-focused array editor with Tab completion in add/edit mode.
+- **FuzzySelector**: Fuzzy-searchable single-select list.
+- **FuzzyMultiSelector**: Fuzzy-searchable multi-select checklist with locked/recommended items and sub-options.
+- **Wizard**: Multi-step setup component with tabbed navigation, progress indicators, and bordered frame.
 
 ### Helpers
 
 - `setNestedValue(obj, "a.b.c", value)`: Set a deeply nested value by dot-separated path.
 - `getNestedValue(obj, "a.b.c")`: Get a deeply nested value by dot-separated path.
 - `getSettingsTheme(theme)`: Build a combined settings theme (`SettingsTheme`) usable by both settings-list components and full-theme components like `Wizard`.
+- `buildSchemaUrl(packageName, version, options?)`: Build a URL to a JSON Schema file for `$schema` injection (defaults to unpkg, supports custom `baseUrl` or `template`).
 
 ## Exports
 
 ```typescript
-export { ConfigLoader, type ConfigStore, type Migration } from "./src/config-loader";
-export { registerSettingsCommand, type SettingsCommandOptions } from "./src/settings-command";
-export { SectionedSettings, type SectionedSettingsOptions, type SettingsSection } from "./src/components/sectioned-settings";
 export {
-  SettingsDetailEditor,
+  ArrayEditor,
+  type ArrayEditorOptions,
+} from "./src/components/array-editor";
+export {
+  FuzzyMultiSelector,
+  type FuzzyMultiSelectorItem,
+  type FuzzyMultiSelectorOptions,
+  type FuzzyMultiSelectorSubOption,
+} from "./src/components/fuzzy-multi-selector";
+export {
+  FuzzySelector,
+  type FuzzySelectorOptions,
+} from "./src/components/fuzzy-selector";
+export {
+  PathArrayEditor,
+  type PathArrayEditorOptions,
+} from "./src/components/path-array-editor";
+export {
+  SectionedSettings,
+  type SectionedSettingsOptions,
+  type SettingsSection,
+} from "./src/components/sectioned-settings";
+export {
   type SettingsDetailActionField,
   type SettingsDetailBooleanField,
+  SettingsDetailEditor,
   type SettingsDetailEditorOptions,
   type SettingsDetailEnumField,
   type SettingsDetailField,
   type SettingsDetailSubmenuField,
   type SettingsDetailTextField,
 } from "./src/components/settings-detail-editor";
-export { ArrayEditor, type ArrayEditorOptions } from "./src/components/array-editor";
-export { PathArrayEditor, type PathArrayEditorOptions } from "./src/components/path-array-editor";
-export { setNestedValue, getNestedValue } from "./src/helpers";
-export { buildSchemaUrl } from "./src/schema";
+export {
+  Wizard,
+  type WizardOptions,
+  type WizardStep,
+  type WizardStepContext,
+} from "./src/components/wizard";
+export {
+  ConfigLoader,
+  type ConfigStore,
+  type Migration,
+  type Scope,
+} from "./src/config-loader";
+export { getNestedValue, setNestedValue } from "./src/helpers";
+export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./src/schema";
+export {
+  type ExtraSettingsTab,
+  type ExtraSettingsTabContext,
+  registerSettingsCommand,
+  type SettingsCommandOptions,
+} from "./src/settings-command";
 export { getSettingsTheme, type SettingsTheme } from "./src/theme";
 ```

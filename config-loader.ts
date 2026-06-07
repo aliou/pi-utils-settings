@@ -283,8 +283,10 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     if (changed) {
       try {
         await this.writeFile(filePath, current);
-      } catch {
-        // Save failed - use migrated version in memory only.
+      } catch (err) {
+        console.error(
+          `[settings] Failed to save migrated config to ${filePath}: ${err}`,
+        );
       }
     }
 

@@ -7,6 +7,7 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+import type { SettingsSubmenuContext } from "./sectioned-settings";
 
 interface SettingsDetailFieldBase {
   id: string;
@@ -42,7 +43,10 @@ export interface SettingsDetailBooleanField extends SettingsDetailFieldBase {
 export interface SettingsDetailSubmenuField extends SettingsDetailFieldBase {
   type: "submenu";
   getValue: () => string;
-  submenu: (done: (summary?: string) => void) => Component;
+  submenu: (
+    done: (summary?: string) => void,
+    ctx: SettingsSubmenuContext,
+  ) => Component;
   onSubmenuDone?: (summary?: string) => void;
   emptyValueText?: string;
 }
@@ -71,6 +75,11 @@ export interface SettingsDetailEditorOptions {
   maxVisible?: number;
   emptyStateText?: string;
   hintSuffix?: string;
+  /**
+   * Render hook for nested submenus that load data asynchronously.
+   * If omitted, async submenus can still be used, but they cannot request a redraw.
+   */
+  requestRender?: () => void;
 }
 
 type EditorMode = "list" | "text" | "enum" | "confirm";
@@ -89,6 +98,7 @@ export class SettingsDetailEditor implements Component {
   private readonly maxVisible: number;
   private readonly emptyStateText: string;
   private readonly hintSuffix: string;
+  private readonly requestRender: () => void;
 
   private selectedIndex = 0;
   private mode: EditorMode = "list";
@@ -114,6 +124,7 @@ export class SettingsDetailEditor implements Component {
     this.maxVisible = options.maxVisible ?? 10;
     this.emptyStateText = options.emptyStateText ?? "No editable fields";
     this.hintSuffix = options.hintSuffix ?? "";
+    this.requestRender = options.requestRender ?? (() => {});
 
     this.input.onSubmit = (value) => this.submitInput(value);
     this.input.onEscape = () => {
@@ -400,10 +411,14 @@ export class SettingsDetailEditor implements Component {
 
     if (field.type === "submenu") {
       this.submenuFieldIndex = this.selectedIndex;
-      this.submenuComponent = field.submenu((summary) => {
-        field.onSubmenuDone?.(summary);
-        this.closeSubmenu();
-      });
+      this.submenuComponent = field.submenu(
+        (summary) => {
+          field.onSubmenuDone?.(summary);
+          this.closeSubmenu();
+          this.requestRender();
+        },
+        { requestRender: this.requestRender },
+      );
       return;
     }
 

@@ -11,6 +11,7 @@
  * - Submenu items with FuzzySelector (single-select from large list)
  * - Submenu items with FuzzyMultiSelector (multi-select checklist with locked/recommended)
  * - Submenu items with SettingsDetailEditor (focused second-level panel)
+ * - Async submenu that fetches remote data and requests a redraw when ready
  * - Array-of-objects editing pattern using nested SettingsDetailEditor panels
  * - Custom onSettingChange handler for non-string values
  * - onBeforeClose to prevent closing with unsaved drafts
@@ -27,6 +28,7 @@ import {
   SettingsDetailEditor,
 } from "@aliou/pi-utils-settings";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import {
   configLoader,
@@ -46,6 +48,16 @@ const AVAILABLE_THEMES = [
   "catppuccin",
   "tokyo-night",
 ];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Simulated remote fetch. Replace with a real API or subprocess call. */
+async function loadRemoteThemes(): Promise<string[]> {
+  await sleep(2000);
+  return ["everforest", "rose-pine", "kanagawa"];
+}
 
 export function registerExampleSettings(pi: ExtensionAPI): void {
   registerSettingsCommand<ExampleConfig, ResolvedExampleConfig>(pi, {
@@ -126,6 +138,63 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
               currentValue: showLineNumbers ? "on" : "off",
               values: ["on", "off"],
               description: `Show line numbers in the gutter. (scope: ${ctx.scope}${ctx.isInherited("appearance.showLineNumbers") ? ", inherited" : ""})`,
+            },
+            // Async submenu: fetch remote data, then render a real editor.
+            // The wrapper component calls requestRender() once data is ready.
+            {
+              id: "appearance.remoteTheme",
+              label: "Remote theme",
+              currentValue: theme,
+              description: "Fetches additional themes from a remote source.",
+              submenu: (_current, done, { requestRender }) => {
+                const current = tabConfig ?? ({} as ExampleConfig);
+
+                class AsyncThemePicker implements Component {
+                  private editor: Component | null = null;
+
+                  constructor() {
+                    void loadRemoteThemes().then((themes) => {
+                      this.editor = new FuzzySelector({
+                        label: "Remote Theme",
+                        items: themes,
+                        currentValue: theme,
+                        theme: ctx.theme,
+                        onSelect: (selected) => {
+                          const updated: ExampleConfig = {
+                            ...current,
+                            appearance: {
+                              ...current.appearance,
+                              theme: selected,
+                            },
+                          };
+                          ctx.setDraft(updated);
+                          done(selected);
+                        },
+                        onDone: () => done(undefined),
+                      });
+                      requestRender();
+                    });
+                  }
+
+                  render(width: number): string[] {
+                    return (
+                      this.editor?.render(width) ?? [
+                        ctx.theme.hint("  (loading remote themes...)"),
+                      ]
+                    );
+                  }
+
+                  handleInput(data: string): void {
+                    this.editor?.handleInput?.(data);
+                  }
+
+                  invalidate(): void {
+                    this.editor?.invalidate?.();
+                  }
+                }
+
+                return new AsyncThemePicker();
+              },
             },
           ],
         },

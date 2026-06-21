@@ -342,7 +342,11 @@ export function registerSettingsCommand<
               handleExtraTabChange(id);
             },
             requestClose,
-            { enableSearch: true, hideHint: true },
+            {
+              enableSearch: true,
+              hideHint: true,
+              requestRender: () => tui.requestRender(),
+            },
           );
         }
 

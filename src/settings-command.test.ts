@@ -71,13 +71,15 @@ function makeSettingsHarness(
     ...overrides,
   });
 
+  const requestRender = vi.fn();
+
   const ctx = {
     hasUI: true,
     ui: {
       notify,
       custom: vi.fn((factory: (...args: unknown[]) => unknown) => {
         component = factory(
-          { requestRender: vi.fn() },
+          { requestRender },
           {},
           undefined,
           done,
@@ -94,6 +96,7 @@ function makeSettingsHarness(
     },
     done,
     notify,
+    requestRender,
   };
 }
 
@@ -141,6 +144,41 @@ describe("registerSettingsCommand", () => {
 
     expect(onBeforeClose).toHaveBeenCalledWith(false);
     expect(harness.done).not.toHaveBeenCalled();
+  });
+
+  it("passes requestRender to async submenus", async () => {
+    let capturedCtx: { requestRender: () => void } | undefined;
+
+    const harness = makeSettingsHarness({
+      buildSections: () => [
+        {
+          label: "Remote",
+          items: [
+            {
+              id: "async",
+              label: "Async",
+              currentValue: "loading",
+              submenu: (_value, _done, ctx) => {
+                capturedCtx = ctx;
+                return {
+                  render: () => ["async"],
+                  handleInput: () => {},
+                  invalidate: () => {},
+                };
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+    expect(capturedCtx).toBeDefined();
+
+    capturedCtx?.requestRender();
+    expect(harness.requestRender).toHaveBeenCalled();
   });
 });
 

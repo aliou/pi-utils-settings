@@ -211,7 +211,7 @@ buildSections: (_tabConfig, _resolved, ctx) => [
 
 ### Submenu support
 
-Items can open submenus by providing a `submenu` factory. Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):
+Items can open submenus by providing a `submenu` factory. The factory receives the current value, a `done` callback, and a `{ requestRender }` context so async submenus can trigger a redraw. Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):
 
 ```typescript
 import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
@@ -220,7 +220,7 @@ import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
   id: "tags",
   label: "Tags",
   currentValue: `${tags.length} items`,
-  submenu: (_val, done) => {
+  submenu: (_val, done, _ctx) => {
     let latest = [...tags];
     return new ArrayEditor({
       label: "Tags",
@@ -234,6 +234,65 @@ import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
       },
       onDone: () => done(`${latest.length} items`),
     });
+  },
+}
+```
+
+For submenus that load data asynchronously, call `ctx.requestRender()` once the real editor is ready. The render hook is wired automatically by `registerSettingsCommand`; standalone `SectionedSettings` users can pass `requestRender` in `SectionedSettingsOptions`.
+
+```typescript
+import { FuzzySelector } from "@aliou/pi-utils-settings";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function loadPresets(): Promise<string[]> {
+  // Simulate a network or subprocess call.
+  await sleep(2000);
+  return ["dark", "light", "solarized-dark"];
+}
+
+{
+  id: "remote.presets",
+  label: "Remote presets",
+  currentValue: "loading",
+  submenu: (_val, done, { requestRender }) => {
+    class AsyncPresetPicker implements Component {
+      private editor: Component | null = null;
+
+      constructor() {
+        void loadPresets().then((presets) => {
+          this.editor = new FuzzySelector({
+            label: "Preset",
+            items: presets,
+            theme: ctx.theme,
+            onSelect: (selected) => {
+              const updated = structuredClone(tabConfig ?? {}) as MyConfig;
+              setNestedValue(updated, "appearance.theme", selected);
+              setDraft(updated);
+              done(selected);
+            },
+            onDone: () => done(undefined),
+          });
+          requestRender();
+        });
+      }
+
+      render(width: number): string[] {
+        return this.editor?.render(width) ?? [ctx.theme.hint("  (loading presets...)")];
+      }
+
+      handleInput(data: string): void {
+        this.editor?.handleInput?.(data);
+      }
+
+      invalidate(): void {
+        this.editor?.invalidate?.();
+      }
+    }
+
+    return new AsyncPresetPicker();
   },
 }
 ```

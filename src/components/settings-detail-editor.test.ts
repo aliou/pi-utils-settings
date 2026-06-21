@@ -1,5 +1,5 @@
 import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   SettingsDetailEditor,
   type SettingsDetailField,
@@ -190,5 +190,50 @@ describe("SettingsDetailEditor", () => {
     expect(rendered).toContain("> Nested");
     expect(rendered).toContain("› open");
     expect(summaryFromNested).toBe("updated");
+  });
+
+  it("passes requestRender context to nested submenus", () => {
+    const requestRender = vi.fn();
+    let capturedCtx: { requestRender: () => void } | undefined;
+
+    const fields: SettingsDetailField[] = [
+      {
+        id: "async",
+        type: "submenu",
+        label: "Async",
+        getValue: () => "loading",
+        submenu: (done, ctx) => {
+          capturedCtx = ctx;
+          return {
+            render: () => ["async"],
+            handleInput: (data: string) => {
+              if (data === "x") {
+                done("ready");
+              }
+            },
+            invalidate: () => {},
+          };
+        },
+        onSubmenuDone: () => {},
+      },
+    ];
+
+    const editor = new SettingsDetailEditor({
+      title: "Details",
+      fields,
+      theme: createTheme(),
+      onDone: () => {},
+      requestRender,
+    });
+
+    editor.handleInput(ENTER);
+    expect(editor.render(80).join("\n")).toContain("async");
+    expect(capturedCtx).toBeDefined();
+
+    capturedCtx?.requestRender();
+    expect(requestRender).toHaveBeenCalled();
+
+    editor.handleInput("x");
+    expect(requestRender).toHaveBeenCalledTimes(2);
   });
 });

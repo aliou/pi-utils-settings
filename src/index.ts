@@ -32,9 +32,11 @@ export {
 } from "./components/path-array-editor";
 
 export {
+  type SectionedSettingItem,
   SectionedSettings,
   type SectionedSettingsOptions,
   type SettingsSection,
+  type SettingsSubmenuContext,
 } from "./components/sectioned-settings";
 export {
   type SettingsDetailActionField,

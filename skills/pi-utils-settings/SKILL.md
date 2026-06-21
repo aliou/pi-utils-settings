@@ -188,7 +188,7 @@ onSettingChange: (id, newValue, config) => {
 
 ### Submenu Items
 
-For arrays or complex values, use `submenu` instead of `values`. Inside `buildSections`, use `ctx.theme` (a `SettingsTheme` that works as both `SettingsListTheme` and full `Theme`):
+For arrays or complex values, use `submenu` instead of `values`. Inside `buildSections`, use `ctx.theme` (a `SettingsTheme` that works as both `SettingsListTheme` and full `Theme`). The submenu factory also receives a `{ requestRender }` context so async submenus can request a redraw once data is ready:
 
 ```typescript
 import { ArrayEditor, PathArrayEditor } from "@aliou/pi-utils-settings";
@@ -202,7 +202,7 @@ const tags = current.tags ?? resolved.tags;
   id: "tags",
   label: "Tags",
   currentValue: `${tags.length} items`,
-  submenu: (_val, done) =>
+  submenu: (_val, done, _ctx) =>
     new ArrayEditor({
       label: "Tags",
       items: [...tags],
@@ -217,6 +217,70 @@ const tags = current.tags ?? resolved.tags;
 ```
 
 `PathArrayEditor` is identical but adds Tab completion for filesystem paths. Accepts optional `validatePath` hook.
+
+For submenus that need to fetch remote data before showing the real editor, return a small wrapper that loads in the background and calls `requestRender()` when ready:
+
+```typescript
+import type { Component } from "@earendil-works/pi-tui";
+import { FuzzySelector } from "@aliou/pi-utils-settings";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function loadRemoteThemes(): Promise<string[]> {
+  // Replace with a real fetch or subprocess call.
+  await sleep(2000);
+  return ["dark", "light", "solarized-dark", "nord"];
+}
+
+// ... in items array:
+{
+  id: "appearance.remoteTheme",
+  label: "Remote theme",
+  currentValue: theme,
+  submenu: (_val, done, { requestRender }) => {
+    class AsyncThemePicker implements Component {
+      private editor: Component | null = null;
+
+      constructor() {
+        void loadRemoteThemes().then((themes) => {
+          this.editor = new FuzzySelector({
+            label: "Remote Theme",
+            items: themes,
+            currentValue: theme,
+            theme: ctx.theme,
+            onSelect: (selected) => {
+              const updated: MyConfig = {
+                ...current,
+                appearance: { ...current.appearance, theme: selected },
+              };
+              ctx.setDraft(updated);
+              done(selected);
+            },
+            onDone: () => done(undefined),
+          });
+          requestRender();
+        });
+      }
+
+      render(width: number): string[] {
+        return this.editor?.render(width) ?? [ctx.theme.hint("  (loading remote themes...)")];
+      }
+
+      handleInput(data: string): void {
+        this.editor?.handleInput?.(data);
+      }
+
+      invalidate(): void {
+        this.editor?.invalidate?.();
+      }
+    }
+
+    return new AsyncThemePicker();
+  },
+}
+```
 
 When building components outside `registerSettingsCommand` (e.g., inside `ctx.ui.custom`), use `getSettingsTheme(theme)` to create a combined theme:
 

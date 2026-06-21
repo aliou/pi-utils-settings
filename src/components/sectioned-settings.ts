@@ -15,12 +15,27 @@ import {
  * Cursor skips section headers and only lands on items.
  *
  * Supports the same SettingItem interface as pi-tui's SettingsList,
- * including value cycling and submenus.
+ * including value cycling and submenus. Submenu factories also receive
+ * a `{ requestRender }` context so async submenus can trigger redraws.
  */
+
+/** Context passed to submenu factories so they can request a redraw. */
+export interface SettingsSubmenuContext {
+  requestRender: () => void;
+}
+
+/** Setting item used by SectionedSettings, with a richer submenu contract. */
+export type SectionedSettingItem = Omit<SettingItem, "submenu"> & {
+  submenu?: (
+    currentValue: string,
+    done: (selectedValue?: string) => void,
+    ctx: SettingsSubmenuContext,
+  ) => Component;
+};
 
 export interface SettingsSection {
   label: string;
-  items: SettingItem[];
+  items: SectionedSettingItem[];
 }
 
 export interface SectionedSettingsOptions {
@@ -29,12 +44,17 @@ export interface SectionedSettingsOptions {
   hintSuffix?: string;
   /** Hide the built-in hint line (when the parent renders its own controls). */
   hideHint?: boolean;
+  /**
+   * Render hook for submenus that load data asynchronously.
+   * If omitted, async submenus can still be used, but they cannot request a redraw.
+   */
+  requestRender?: () => void;
 }
 
 interface FlatEntry {
   type: "section" | "item";
   sectionLabel?: string;
-  item?: SettingItem;
+  item?: SectionedSettingItem;
 }
 
 export class SectionedSettings implements Component {
@@ -50,6 +70,7 @@ export class SectionedSettings implements Component {
   private searchEnabled: boolean;
   private hintSuffix: string;
   private hideHint: boolean;
+  private requestRender: () => void;
   private submenuComponent: Component | null = null;
   private submenuItemIndex: number | null = null;
 
@@ -69,6 +90,7 @@ export class SectionedSettings implements Component {
     this.searchEnabled = options.enableSearch ?? false;
     this.hintSuffix = options.hintSuffix ?? "";
     this.hideHint = options.hideHint ?? false;
+    this.requestRender = options.requestRender ?? (() => {});
     this.selectedIndex = 0;
 
     if (this.searchEnabled) {
@@ -90,10 +112,10 @@ export class SectionedSettings implements Component {
     return entries;
   }
 
-  private getSelectableItems(): SettingItem[] {
+  private getSelectableItems(): SectionedSettingItem[] {
     return this.filteredEntries
       .filter((e) => e.type === "item" && e.item)
-      .map((e) => e.item as SettingItem);
+      .map((e) => e.item as SectionedSettingItem);
   }
 
   /**
@@ -309,10 +331,14 @@ export class SectionedSettings implements Component {
         (selectedValue) => {
           if (selectedValue !== undefined) {
             item.currentValue = selectedValue;
-            this.onChange(item.id, selectedValue);
           }
           this.closeSubmenu();
+          if (selectedValue !== undefined) {
+            this.onChange(item.id, selectedValue);
+          }
+          this.requestRender();
         },
+        { requestRender: this.requestRender },
       );
     } else if (item.values && item.values.length > 0) {
       const currentIndex = item.values.indexOf(item.currentValue);

@@ -46,6 +46,21 @@ export interface ExtraSettingsTabContext<
   theme: SettingsTheme;
 }
 
+export interface ExtraSettingsTabChangeContext<
+  TConfig extends object,
+  TResolved extends object,
+> extends ExtraSettingsTabContext<TConfig, TResolved> {
+  /**
+   * Apply the command-level onSettingChange/default change handler to a scope
+   * draft. Use this for value-cycling items rendered in extra tabs.
+   */
+  applySettingChangeToScope: (
+    scope: Scope,
+    id: string,
+    newValue: string,
+  ) => void;
+}
+
 export interface ExtraSettingsTab<
   TConfig extends object,
   TResolved extends object,
@@ -58,6 +73,16 @@ export interface ExtraSettingsTab<
   buildSections: (
     ctx: ExtraSettingsTabContext<TConfig, TResolved>,
   ) => SettingsSection[];
+  /**
+   * Optional value-cycling handler for non-submenu items in this extra tab.
+   * Extra tabs are not scope-bound, so call ctx.applySettingChangeToScope(...)
+   * or ctx.setDraftForScope(...) to choose which scope draft should change.
+   */
+  onSettingChange?: (
+    id: string,
+    newValue: string,
+    ctx: ExtraSettingsTabChangeContext<TConfig, TResolved>,
+  ) => void;
 }
 
 interface ScopeTab {
@@ -113,8 +138,7 @@ export interface SettingsCommandOptions<
   extraTabs?: ExtraSettingsTab<TConfig, TResolved>[];
   /**
    * Custom change handler. Receives the setting ID, new display value,
-   * and a clone of the current tab config. Return the updated config,
-   * or null to skip the change.
+   * and a clone of the current tab config. Return the updated config.
    *
    * If not provided, the default handler stores the raw string value as-is
    * via dotted path. Use this to convert display values (e.g., "on"/"off")
@@ -313,14 +337,7 @@ export function registerSettingsCommand<
             return currentSections;
           }
 
-          currentSections = extraTab.buildSections({
-            resolved,
-            setDraftForScope,
-            getDraftForScope,
-            getRawForScope,
-            enabledScopes,
-            theme: settingsTheme,
-          });
+          currentSections = extraTab.buildSections(getExtraTabContext());
           return currentSections;
         }
 
@@ -339,7 +356,7 @@ export function registerSettingsCommand<
                 handleScopeChange(tabId, id, newValue);
                 return;
               }
-              handleExtraTabChange(id);
+              handleExtraTabChange(tabId, id, newValue);
             },
             requestClose,
             {
@@ -352,6 +369,41 @@ export function registerSettingsCommand<
 
         // --- Change handlers (in-memory only) ---
 
+        function applySettingChangeToScope(
+          scope: Scope,
+          id: string,
+          newValue: string,
+        ): void {
+          // For memory scope with no existing config, start from merged config
+          let current = getScopeTabConfig(scope);
+          if (scope === "memory" && current === null) {
+            current = configStore.getConfig() as unknown as TConfig;
+          }
+
+          const baseConfig = structuredClone(current ?? ({} as TConfig));
+          const updated =
+            onSettingChange?.(id, newValue, structuredClone(baseConfig)) ??
+            defaultChangeHandler(id, newValue, structuredClone(baseConfig));
+
+          // Store in draft, don't write to disk yet.
+          setDraftForScope(scope, updated);
+        }
+
+        function getExtraTabContext(): ExtraSettingsTabChangeContext<
+          TConfig,
+          TResolved
+        > {
+          return {
+            resolved: configStore.getConfig(),
+            setDraftForScope,
+            getDraftForScope,
+            getRawForScope,
+            enabledScopes,
+            theme: settingsTheme,
+            applySettingChangeToScope,
+          };
+        }
+
         function handleScopeChange(
           scope: Scope,
           id: string,
@@ -363,32 +415,23 @@ export function registerSettingsCommand<
             return;
           }
 
-          // For memory scope with no existing config, start from merged config
-          let current = getScopeTabConfig(scope);
-          if (scope === "memory" && current === null) {
-            current = configStore.getConfig() as unknown as TConfig;
-          }
-
-          const handler = onSettingChange ?? defaultChangeHandler;
-          const updated = handler(
-            id,
-            newValue,
-            structuredClone(current ?? ({} as TConfig)),
-          );
-          if (!updated) return;
-
-          // Store in draft, don't write to disk yet.
-          drafts[scope] = updated;
+          applySettingChangeToScope(scope, id, newValue);
           refresh();
         }
 
-        function handleExtraTabChange(id: string): void {
-          // Extra tabs are not scope-bound. Keep current save semantics:
-          // only explicit setDraftForScope(...) mutations are tracked/saved.
+        function handleExtraTabChange(
+          tabId: string,
+          id: string,
+          newValue: string,
+        ): void {
+          // Submenu items handle their own saving.
           if (isSubmenuItem(currentSections, id)) {
             refresh();
             return;
           }
+
+          const extraTab = extraTabsById.get(tabId);
+          extraTab?.onSettingChange?.(id, newValue, getExtraTabContext());
           refresh();
         }
 

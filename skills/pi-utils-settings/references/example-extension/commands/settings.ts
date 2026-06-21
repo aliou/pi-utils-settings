@@ -14,6 +14,7 @@
  * - Async submenu that fetches remote data and requests a redraw when ready
  * - Array-of-objects editing pattern using nested SettingsDetailEditor panels
  * - Custom onSettingChange handler for non-string values
+ * - Extra-tab value cycling with explicit scope draft updates
  * - onBeforeClose to prevent closing with unsaved drafts
  * - onSave callback for reloading runtime state
  */
@@ -624,29 +625,61 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
       {
         id: "examples",
         label: "Examples",
-        buildSections: ({ resolved, enabledScopes, getRawForScope, theme }) => [
-          {
-            label: "Info",
-            items: [
-              {
-                id: "examples.scopes",
-                label: "Enabled scopes",
-                currentValue: enabledScopes.join(", "),
-                description: "Extra tabs are rendered after scope tabs.",
-              },
-              {
-                id: "examples.theme",
-                label: "Resolved theme",
-                currentValue: theme.fg("accent", resolved.appearance.theme),
-              },
-              {
-                id: "examples.hasGlobal",
-                label: "Global config",
-                currentValue: getRawForScope("global") ? "present" : "missing",
-              },
-            ],
-          },
-        ],
+        buildSections: ({
+          resolved,
+          enabledScopes,
+          getDraftForScope,
+          getRawForScope,
+          theme,
+        }) => {
+          const globalConfig =
+            getDraftForScope("global") ?? getRawForScope("global");
+          const globalLineNumbers =
+            globalConfig?.appearance?.showLineNumbers ??
+            resolved.appearance.showLineNumbers;
+
+          return [
+            {
+              label: "Info",
+              items: [
+                {
+                  id: "examples.scopes",
+                  label: "Enabled scopes",
+                  currentValue: enabledScopes.join(", "),
+                  description: "Extra tabs are rendered after scope tabs.",
+                },
+                {
+                  id: "examples.theme",
+                  label: "Resolved theme",
+                  currentValue: theme.fg("accent", resolved.appearance.theme),
+                },
+                {
+                  id: "examples.hasGlobal",
+                  label: "Global config",
+                  currentValue: getRawForScope("global")
+                    ? "present"
+                    : "missing",
+                },
+              ],
+            },
+            {
+              label: "Global shortcuts",
+              items: [
+                {
+                  id: "appearance.showLineNumbers",
+                  label: "Global line numbers",
+                  currentValue: globalLineNumbers ? "on" : "off",
+                  values: ["on", "off"],
+                  description:
+                    "Value-cycling item in an extra tab. Changes the global scope draft and persists on Ctrl+S.",
+                },
+              ],
+            },
+          ];
+        },
+        onSettingChange: (id, newValue, ctx) => {
+          ctx.applySettingChangeToScope("global", id, newValue);
+        },
       },
     ],
 

@@ -180,7 +180,37 @@ const extraTabs: ExtraSettingsTab<MyConfig, ResolvedConfig>[] = [
 ];
 ```
 
-`Ctrl+S` behavior stays the same: only dirty scope drafts are saved. Extra tabs can still update drafts by calling `setDraftForScope(...)` from submenu callbacks.
+`Ctrl+S` behavior stays the same: only dirty scope drafts are saved. Extra tabs can update drafts by calling `setDraftForScope(...)` from submenu callbacks.
+
+For value-cycling items (`values`) in an extra tab, add `onSettingChange` to the extra tab and choose the target scope explicitly. `applySettingChangeToScope(...)` reuses the command-level `onSettingChange` handler, falling back to the default dotted-path string storage when that handler returns `null`.
+
+```typescript
+const extraTabs: ExtraSettingsTab<MyConfig, ResolvedConfig>[] = [
+  {
+    id: "presets",
+    label: "Presets",
+    buildSections: ({ getDraftForScope, getRawForScope }) => {
+      const config = getDraftForScope("global") ?? getRawForScope("global");
+      return [
+        {
+          label: "Presets",
+          items: [
+            {
+              id: "features.darkMode",
+              label: "Dark mode",
+              currentValue: config?.features?.darkMode ? "on" : "off",
+              values: ["on", "off"],
+            },
+          ],
+        },
+      ];
+    },
+    onSettingChange: (id, newValue, ctx) => {
+      ctx.applySettingChangeToScope("global", id, newValue);
+    },
+  },
+];
+```
 
 `buildSections` ctx now includes `theme`, which is both a `SettingsListTheme` and full pi `Theme`. This means you can use list helpers (`label`, `value`, `hint`, ...) and pass the same object to components that require full `Theme`.
 
@@ -460,6 +490,7 @@ export { getNestedValue, setNestedValue } from "./src/helpers";
 export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./src/schema";
 export {
   type ExtraSettingsTab,
+  type ExtraSettingsTabChangeContext,
   type ExtraSettingsTabContext,
   registerSettingsCommand,
   type SettingsCommandOptions,

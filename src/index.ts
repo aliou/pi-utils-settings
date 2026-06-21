@@ -65,6 +65,7 @@ export { getNestedValue, setNestedValue } from "./helpers";
 export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./schema";
 export {
   type ExtraSettingsTab,
+  type ExtraSettingsTabChangeContext,
   type ExtraSettingsTabContext,
   registerSettingsCommand,
   type SettingsCommandOptions,

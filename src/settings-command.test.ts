@@ -23,6 +23,8 @@ interface TestConfig {
 
 const ENTER = "\r";
 const ESC = "\u001b";
+const TAB = "\t";
+const CTRL_S = "\u0013";
 
 function makeSettingsHarness(
   overrides: Partial<SettingsCommandOptions<TestConfig, TestConfig>> = {},
@@ -97,6 +99,7 @@ function makeSettingsHarness(
     done,
     notify,
     requestRender,
+    configStore,
   };
 }
 
@@ -144,6 +147,64 @@ describe("registerSettingsCommand", () => {
 
     expect(onBeforeClose).toHaveBeenCalledWith(false);
     expect(harness.done).not.toHaveBeenCalled();
+  });
+
+  it("falls back to default handling when onSettingChange returns null", async () => {
+    const onSettingChange = vi.fn(() => null);
+    const harness = makeSettingsHarness({ onSettingChange });
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+    component.handleInput?.(CTRL_S);
+    await Promise.resolve();
+
+    expect(onSettingChange).toHaveBeenCalledWith("feature", "on", {
+      feature: "off",
+    });
+    expect(harness.configStore.save).toHaveBeenCalledWith("global", {
+      feature: "on",
+    });
+  });
+
+  it("allows extra tab value cycling to update a scope draft", async () => {
+    const harness = makeSettingsHarness({
+      extraTabs: [
+        {
+          id: "advanced",
+          label: "Advanced",
+          buildSections: ({ getDraftForScope, getRawForScope }) => {
+            const config =
+              getDraftForScope("global") ?? getRawForScope("global");
+            return [
+              {
+                label: "Advanced",
+                items: [
+                  {
+                    id: "feature",
+                    label: "Feature",
+                    currentValue: config?.feature ?? "off",
+                    values: ["off", "on"],
+                  },
+                ],
+              },
+            ];
+          },
+          onSettingChange: (id, newValue, ctx) => {
+            ctx.applySettingChangeToScope("global", id, newValue);
+          },
+        },
+      ],
+    });
+    const component = await harness.open();
+
+    component.handleInput?.(TAB);
+    component.handleInput?.(ENTER);
+    component.handleInput?.(CTRL_S);
+    await Promise.resolve();
+
+    expect(harness.configStore.save).toHaveBeenCalledWith("global", {
+      feature: "on",
+    });
   });
 
   it("passes requestRender to async submenus", async () => {

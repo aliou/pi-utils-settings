@@ -185,6 +185,10 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   }
 
                   handleInput(data: string): void {
+                    if (this.editor === null && matchesKey(data, Key.escape)) {
+                      done(undefined);
+                      return;
+                    }
                     this.editor?.handleInput?.(data);
                   }
 

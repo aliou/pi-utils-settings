@@ -241,6 +241,8 @@ import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
 For submenus that load data asynchronously, call `ctx.requestRender()` once the real editor is ready. The render hook is wired automatically by `registerSettingsCommand`; standalone `SectionedSettings` users can pass `requestRender` in `SectionedSettingsOptions`.
 
 ```typescript
+import type { Component } from "@earendil-works/pi-tui";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { FuzzySelector } from "@aliou/pi-utils-settings";
 
 function sleep(ms: number): Promise<void> {
@@ -284,6 +286,10 @@ async function loadPresets(): Promise<string[]> {
       }
 
       handleInput(data: string): void {
+        if (this.editor === null && matchesKey(data, Key.escape)) {
+          done(undefined);
+          return;
+        }
         this.editor?.handleInput?.(data);
       }
 

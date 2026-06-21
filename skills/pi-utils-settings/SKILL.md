@@ -222,6 +222,7 @@ For submenus that need to fetch remote data before showing the real editor, retu
 
 ```typescript
 import type { Component } from "@earendil-works/pi-tui";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { FuzzySelector } from "@aliou/pi-utils-settings";
 
 function sleep(ms: number): Promise<void> {
@@ -269,6 +270,10 @@ async function loadRemoteThemes(): Promise<string[]> {
       }
 
       handleInput(data: string): void {
+        if (this.editor === null && matchesKey(data, Key.escape)) {
+          done(undefined);
+          return;
+        }
         this.editor?.handleInput?.(data);
       }
 

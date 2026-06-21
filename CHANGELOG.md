@@ -1,5 +1,23 @@
 # @aliou/pi-utils-settings
 
+## 0.18.0
+
+### Minor Changes
+
+- 245765e: Submenu factories now receive a `{ requestRender: () => void }` context so async-loaded submenus can trigger a redraw.
+
+  - `SectionedSettings` submenu signature is `(currentValue, done, ctx) => Component`.
+  - `SettingsDetailEditor` nested submenu signature is `(done, ctx) => Component`.
+  - `registerSettingsCommand` wires the real `tui.requestRender()` hook automatically.
+  - Standalone `SectionedSettings` / `SettingsDetailEditor` users can pass `requestRender` in options.
+  - Existing 2-argument submenu factories remain compatible.
+
+### Patch Changes
+
+- 2f1b07e: Extra tabs can now handle value-cycling setting items with an explicit `onSettingChange` callback. The callback receives `applySettingChangeToScope(...)`, which reuses the command-level setting change handler and writes the result into the chosen scope draft so Ctrl+S persists it.
+
+  Also align `onSettingChange` behavior with the docs: returning `null` falls through to the default dotted-path string storage.
+
 ## 0.17.0
 
 ### Minor Changes

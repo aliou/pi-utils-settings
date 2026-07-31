@@ -30,6 +30,11 @@ export interface FuzzySelectorOptions {
   onDone: () => void;
   maxVisible?: number; // default 10
   searchThreshold?: number; // default 7, switch to fuzzy search when item count is above this
+  /**
+   * Save hook invoked on Ctrl+S. Only useful when the selector is used
+   * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
+   */
+  requestSave?: () => void;
 }
 
 export class FuzzySelector implements Component {
@@ -44,6 +49,7 @@ export class FuzzySelector implements Component {
   private input: Input;
   private query = "";
   private useSearch: boolean;
+  private requestSave: () => void;
 
   constructor(options: FuzzySelectorOptions) {
     this.allItems = [...options.items];
@@ -53,6 +59,7 @@ export class FuzzySelector implements Component {
     this.onSelect = options.onSelect;
     this.onDone = options.onDone;
     this.maxVisible = options.maxVisible ?? 10;
+    this.requestSave = options.requestSave ?? (() => {});
     const threshold = options.searchThreshold ?? 7;
     this.useSearch = this.allItems.length > threshold;
     this.input = new Input();
@@ -160,6 +167,11 @@ export class FuzzySelector implements Component {
   }
 
   handleInput(data: string) {
+    if (matchesKey(data, Key.ctrl("s"))) {
+      this.requestSave();
+      return;
+    }
+
     // Navigation and selection
     if (matchesKey(data, Key.up)) {
       if (this.filteredItems.length === 0) return;

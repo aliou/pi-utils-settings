@@ -50,6 +50,11 @@ export interface FuzzyMultiSelectorOptions {
   showHints?: boolean;
   /** Show the "N selected" count line. Default true. */
   showCount?: boolean;
+  /**
+   * Save hook invoked on Ctrl+S. Only useful when the selector is used
+   * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
+   */
+  requestSave?: () => void;
 }
 
 type NavigableEntry =
@@ -71,6 +76,7 @@ export class FuzzyMultiSelector implements Component {
   private input: Input;
   private showHints: boolean;
   private showCount: boolean;
+  private requestSave: () => void;
 
   constructor(options: FuzzyMultiSelectorOptions) {
     this.allItems = options.items;
@@ -82,6 +88,7 @@ export class FuzzyMultiSelector implements Component {
     this.input = new Input();
     this.showHints = options.showHints ?? true;
     this.showCount = options.showCount ?? true;
+    this.requestSave = options.requestSave ?? (() => {});
   }
 
   /** Get all items (including non-visible due to filtering). */
@@ -336,6 +343,11 @@ export class FuzzyMultiSelector implements Component {
   }
 
   handleInput(data: string): void {
+    if (matchesKey(data, Key.ctrl("s"))) {
+      this.requestSave();
+      return;
+    }
+
     const navigableList = this.buildNavigableList();
 
     // Navigation

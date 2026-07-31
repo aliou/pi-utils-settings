@@ -25,6 +25,11 @@ export interface ArrayEditorOptions {
   onDone: () => void;
   /** Max visible items before scrolling */
   maxVisible?: number;
+  /**
+   * Save hook invoked on Ctrl+S. Only useful when the editor is used
+   * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
+   */
+  requestSave?: () => void;
 }
 
 export class ArrayEditor implements Component {
@@ -33,6 +38,7 @@ export class ArrayEditor implements Component {
   private theme: SettingsListTheme;
   private onSave: (items: string[]) => void;
   private onDone: () => void;
+  private requestSave: () => void;
   private selectedIndex = 0;
   private maxVisible: number;
   private mode: "list" | "add" | "edit" = "list";
@@ -45,6 +51,7 @@ export class ArrayEditor implements Component {
     this.theme = options.theme;
     this.onSave = options.onSave;
     this.onDone = options.onDone;
+    this.requestSave = options.requestSave ?? (() => {});
     this.maxVisible = options.maxVisible ?? 10;
     this.input = new Input();
     this.input.onSubmit = (value: string) => {
@@ -178,6 +185,11 @@ export class ArrayEditor implements Component {
   }
 
   handleInput(data: string) {
+    if (matchesKey(data, Key.ctrl("s"))) {
+      this.requestSave();
+      return;
+    }
+
     if (this.mode === "add" || this.mode === "edit") {
       this.input.handleInput(data);
       return;

@@ -1,27 +1,36 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assert, test as baseTest, describe, expect, vi } from "vitest";
-import { ConfigLoader } from "./config-loader";
+import {
+  ConfigLoader,
+  type MigrationContext,
+} from "./config-loader";
 
 // --- Test types ---
 
 interface TestConfig {
-  version?: string;
+  version?: number;
   foo?: string;
   bar?: number;
   legacy?: boolean;
 }
 
 interface TestResolved {
-  version: string;
+  version: number;
   foo: string;
   bar: number;
   legacy: boolean;
 }
 
 const DEFAULTS: TestResolved = {
-  version: "",
+  version: 0,
   foo: "",
   bar: 0,
   legacy: false,
@@ -427,3 +436,390 @@ describe("ConfigLoader migration messages", () => {
     expect(loader.drainMessages()).toEqual(["Static message text"]);
   });
 });
+
+describe("ConfigLoader versioned migrations", () => {
+  const configName = "pi-utils-settings-test-versions";
+
+  test("throws when a migration has neither shouldRun nor version", async ({
+    testDir,
+  }) => {
+    currentTestDir = testDir;
+
+    expect(
+      () =>
+        new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+          migrations: [
+            {
+              name: "invalid",
+              run: (c) => c,
+            },
+          ],
+        }),
+    ).toThrow(/needs shouldRun or version/);
+  });
+
+  test("throws on non-integer or non-monotonic versions", async ({
+    testDir,
+  }) => {
+    currentTestDir = testDir;
+
+    expect(
+      () =>
+        new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+          migrations: [{ name: "bad", version: 1.5, run: (c) => c }],
+        }),
+    ).toThrow(/non-negative integer/);
+
+    expect(
+      () =>
+        new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+          migrations: [
+            { name: "v2", version: 2, run: (c) => c },
+            { name: "v1", version: 1, run: (c) => c },
+          ],
+        }),
+    ).toThrow(/must be greater than the previous/);
+  });
+
+  test("stops the chain when a versioned migration fails", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    const path = addGlobalConfig(configName, {});
+
+    const v2Run = vi.fn((c: TestConfig) => c);
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "v1",
+            version: 1,
+            run: () => {
+              throw new Error("v1 exploded");
+            },
+          },
+          { name: "v2", version: 2, run: v2Run },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    // v2 must not run: otherwise it would stamp version 2 and v1 would be
+    // permanently skipped on subsequent loads.
+    expect(v2Run).not.toHaveBeenCalled();
+    expect(loader.getVersion()).toBe(0);
+    const onDisk = JSON.parse(readFileSync(path, "utf-8"));
+    expect(onDisk.version).toBeUndefined();
+  });
+
+  test("default gate uses tracked version even if a migration drops the field", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, {});
+
+    const v2Run = vi.fn((c: TestConfig) => c);
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "v1",
+            version: 1,
+            // Returns a config without the stamped version field.
+            run: (c) => {
+              const { version: _, ...rest } = c;
+              return rest;
+            },
+          },
+          { name: "v2", version: 2, run: v2Run },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    expect(v2Run).toHaveBeenCalledTimes(1);
+    expect(loader.getVersion()).toBe(2);
+  });
+
+  test("versioned migration stamps the config file", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    const path = addGlobalConfig(configName, { foo: "old" });
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "v1",
+            version: 1,
+            run: (c) => ({ ...c, foo: "new" }),
+          },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    expect(loader.getRawConfig("global")?.version).toBe(1);
+    const onDisk = JSON.parse(readFileSync(path, "utf-8"));
+    expect(onDisk.version).toBe(1);
+    expect(onDisk.foo).toBe("new");
+  });
+
+  test("default shouldRun runs below version and skips at/above", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { version: 2, foo: "old" });
+
+    const run = vi.fn((c: TestConfig) => ({ ...c, foo: "new" }));
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          { name: "v1", version: 1, run },
+          { name: "v2", version: 2, run },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    expect(run).not.toHaveBeenCalled();
+    expect(loader.getRawConfig("global")?.foo).toBe("old");
+  });
+
+  test("explicit shouldRun overrides the version default", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { version: 5, foo: "old" });
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "forced",
+            version: 1,
+            shouldRun: (c) => c.foo === "old",
+            run: (c) => ({ ...c, foo: "new" }),
+          },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    expect(loader.getRawConfig("global")?.foo).toBe("new");
+    // Version 5 is already higher than the migration's version: no re-stamp.
+    expect(loader.getRawConfig("global")?.version).toBe(5);
+  });
+
+  test("context accumulates applied migrations and versions across the chain", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, {});
+
+    const contexts: MigrationContext[] = [];
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "v1",
+            version: 1,
+            run: (c, _p, ctx) => {
+              contexts.push({
+                ...ctx,
+                appliedMigrations: [...ctx.appliedMigrations],
+              });
+              return c;
+            },
+          },
+          {
+            name: "v2",
+            version: 2,
+            run: (c, _p, ctx) => {
+              contexts.push({
+                ...ctx,
+                appliedMigrations: [...ctx.appliedMigrations],
+              });
+              return c;
+            },
+          },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    expect(contexts).toHaveLength(2);
+    expect(contexts[0]).toMatchObject({
+      fromVersion: 0,
+      toVersion: 1,
+      appliedMigrations: [],
+    });
+    expect(contexts[1]).toMatchObject({
+      fromVersion: 1,
+      toVersion: 2,
+      appliedMigrations: ["v1"],
+    });
+    expect(loader.getVersion()).toBe(2);
+  });
+
+  test("migrations without version do not stamp the file", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    const path = addGlobalConfig(configName, { foo: "old" });
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "unversioned",
+            shouldRun: (c) => c.foo === "old",
+            run: (c) => ({ ...c, foo: "new" }),
+          },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    const onDisk = JSON.parse(readFileSync(path, "utf-8"));
+    expect(onDisk.foo).toBe("new");
+    expect(onDisk.version).toBeUndefined();
+    expect(loader.getVersion()).toBe(0);
+  });
+
+  test("message factory receives the migration context", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, {});
+
+    let received: MigrationContext | undefined;
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "v3",
+            version: 3,
+            message: (_before, _after, _path, ctx) => {
+              received = ctx;
+              return "migrated";
+            },
+            run: (c) => c,
+          },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    assert(received, "context should be passed to the message factory");
+    expect(received.toVersion).toBe(3);
+    expect(received.fromVersion).toBe(0);
+    expect(loader.drainMessages()).toEqual(["migrated"]);
+  });
+
+  test("version stamping coerces a string version from disk", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, {
+      version: "1" as unknown as number,
+      foo: "old",
+    });
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          { name: "v1", version: 1, run: (c) => ({ ...c, foo: "new" }) },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    // "1" is not below 1: the migration is skipped.
+    expect(loader.getRawConfig("global")?.foo).toBe("old");
+    expect(loader.getVersion()).toBe(1);
+  });
+
+  test("does not stamp the file when the only versioned migration fails", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    const path = addGlobalConfig(configName, { foo: "old" });
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "v1",
+            version: 1,
+            run: () => {
+              throw new Error("exploded");
+            },
+          },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    const onDisk = JSON.parse(readFileSync(path, "utf-8"));
+    expect(onDisk.foo).toBe("old");
+    expect(onDisk.version).toBeUndefined();
+  });
+});
+

@@ -23,6 +23,11 @@ export interface PathArrayEditorOptions {
   baseDir?: string;
   /** Optional validation hook. Return error message to reject submit. */
   validatePath?: (value: string) => string | null;
+  /**
+   * Save hook invoked on Ctrl+S. Only useful when the editor is used
+   * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
+   */
+  requestSave?: () => void;
 }
 
 /**
@@ -36,6 +41,7 @@ export class PathArrayEditor implements Component {
   private theme: SettingsListTheme;
   private onSave: (items: string[]) => void;
   private onDone: () => void;
+  private requestSave: () => void;
   private selectedIndex = 0;
   private maxVisible: number;
   private mode: "list" | "add" | "edit" = "list";
@@ -53,6 +59,7 @@ export class PathArrayEditor implements Component {
     this.theme = options.theme;
     this.onSave = options.onSave;
     this.onDone = options.onDone;
+    this.requestSave = options.requestSave ?? (() => {});
     this.maxVisible = options.maxVisible ?? 10;
     this.baseDir = options.baseDir ?? process.cwd();
     this.validatePath = options.validatePath;
@@ -249,6 +256,11 @@ export class PathArrayEditor implements Component {
   }
 
   handleInput(data: string) {
+    if (matchesKey(data, Key.ctrl("s"))) {
+      this.requestSave();
+      return;
+    }
+
     if (this.mode === "add" || this.mode === "edit") {
       if (matchesKey(data, Key.up) && this.completions.length > 0) {
         this.completionIndex =

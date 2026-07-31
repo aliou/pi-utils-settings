@@ -80,6 +80,11 @@ export interface SettingsDetailEditorOptions {
    * If omitted, async submenus can still be used, but they cannot request a redraw.
    */
   requestRender?: () => void;
+  /**
+   * Save hook invoked on Ctrl+S. Only useful when the editor is used
+   * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
+   */
+  requestSave?: () => void;
 }
 
 type EditorMode = "list" | "text" | "enum" | "confirm";
@@ -99,6 +104,7 @@ export class SettingsDetailEditor implements Component {
   private readonly emptyStateText: string;
   private readonly hintSuffix: string;
   private readonly requestRender: () => void;
+  private readonly requestSave: () => void;
 
   private selectedIndex = 0;
   private mode: EditorMode = "list";
@@ -125,6 +131,7 @@ export class SettingsDetailEditor implements Component {
     this.emptyStateText = options.emptyStateText ?? "No editable fields";
     this.hintSuffix = options.hintSuffix ?? "";
     this.requestRender = options.requestRender ?? (() => {});
+    this.requestSave = options.requestSave ?? (() => {});
 
     this.input.onSubmit = (value) => this.submitInput(value);
     this.input.onEscape = () => {
@@ -331,7 +338,16 @@ export class SettingsDetailEditor implements Component {
 
   handleInput(data: string): void {
     if (this.submenuComponent) {
+      if (matchesKey(data, Key.ctrl("s"))) {
+        this.requestSave();
+        return;
+      }
       this.submenuComponent.handleInput?.(data);
+      return;
+    }
+
+    if (matchesKey(data, Key.ctrl("s"))) {
+      this.requestSave();
       return;
     }
 
@@ -417,7 +433,7 @@ export class SettingsDetailEditor implements Component {
           this.closeSubmenu();
           this.requestRender();
         },
-        { requestRender: this.requestRender },
+        { requestRender: this.requestRender, requestSave: this.requestSave },
       );
       return;
     }

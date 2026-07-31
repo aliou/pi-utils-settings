@@ -315,6 +315,10 @@ export function registerSettingsCommand<
           done(undefined);
         }
 
+        function requestSave(): void {
+          if (isDirty()) void save();
+        }
+
         function getSectionsForTab(tabId: string): SettingsSection[] {
           const resolved = configStore.getConfig();
 
@@ -363,6 +367,7 @@ export function registerSettingsCommand<
               enableSearch: true,
               hideHint: true,
               requestRender: () => tui.requestRender(),
+              requestSave,
             },
           );
         }
@@ -585,8 +590,10 @@ export function registerSettingsCommand<
               return;
             }
 
-            // Ctrl+S: save all dirty scope tabs, unless a submenu is open.
-            if (matchesKey(data, Key.ctrl("s")) && !hasActiveSubmenu) {
+            // Ctrl+S: save all dirty scope tabs, from any depth. Submenus
+            // commit edits to the draft on every mutation, so the draft is
+            // always current; intercept here so submenus never see the key.
+            if (matchesKey(data, Key.ctrl("s"))) {
               if (isDirty()) void save();
               return;
             }

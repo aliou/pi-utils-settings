@@ -241,6 +241,56 @@ describe("registerSettingsCommand", () => {
     capturedCtx?.requestRender();
     expect(harness.requestRender).toHaveBeenCalled();
   });
+
+  it("saves with Ctrl+S while a submenu is open", async () => {
+    let submenuInput: ((data: string) => void) | undefined;
+
+    const harness = makeSettingsHarness({
+      buildSections: (tabConfig) => [
+        {
+          label: "General",
+          items: [
+            {
+              id: "feature",
+              label: "Feature",
+              currentValue: tabConfig?.feature ?? "off",
+              values: ["off", "on"],
+            },
+            {
+              id: "sub",
+              label: "Sub",
+              currentValue: "edit",
+              submenu: (_value, done) => {
+                return {
+                  render: () => ["submenu"],
+                  handleInput: (data: string) => {
+                    submenuInput = undefined;
+                    if (data === ESC) done();
+                  },
+                  invalidate: () => {},
+                };
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const component = await harness.open();
+
+    // Make a draft change, then open the submenu.
+    component.handleInput?.(ENTER);
+    component.handleInput?.("j");
+    component.handleInput?.(ENTER);
+    expect(submenuInput).toBeUndefined(); // sanity: submenu is open, input captured
+
+    // Ctrl+S from inside the submenu saves the draft.
+    component.handleInput?.(CTRL_S);
+    await Promise.resolve();
+
+    expect(harness.configStore.save).toHaveBeenCalledWith("global", {
+      feature: "on",
+    });
+  });
 });
 
 describe("defaultChangeHandler", () => {

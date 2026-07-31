@@ -19,9 +19,11 @@ import {
  * a `{ requestRender }` context so async submenus can trigger redraws.
  */
 
-/** Context passed to submenu factories so they can request a redraw. */
+/** Context passed to submenu factories so they can request a redraw or a save. */
 export interface SettingsSubmenuContext {
   requestRender: () => void;
+  /** Ask the host to save. No-op outside registerSettingsCommand. */
+  requestSave?: () => void;
 }
 
 /** Setting item used by SectionedSettings, with a richer submenu contract. */
@@ -49,6 +51,11 @@ export interface SectionedSettingsOptions {
    * If omitted, async submenus can still be used, but they cannot request a redraw.
    */
   requestRender?: () => void;
+  /**
+   * Save hook invoked on Ctrl+S. Only useful when SectionedSettings is used
+   * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
+   */
+  requestSave?: () => void;
 }
 
 interface FlatEntry {
@@ -71,6 +78,7 @@ export class SectionedSettings implements Component {
   private hintSuffix: string;
   private hideHint: boolean;
   private requestRender: () => void;
+  private requestSave: () => void;
   private submenuComponent: Component | null = null;
   private submenuItemIndex: number | null = null;
 
@@ -91,6 +99,7 @@ export class SectionedSettings implements Component {
     this.hintSuffix = options.hintSuffix ?? "";
     this.hideHint = options.hideHint ?? false;
     this.requestRender = options.requestRender ?? (() => {});
+    this.requestSave = options.requestSave ?? (() => {});
     this.selectedIndex = 0;
 
     if (this.searchEnabled) {
@@ -293,13 +302,19 @@ export class SectionedSettings implements Component {
 
   handleInput(data: string): void {
     if (this.submenuComponent) {
+      if (matchesKey(data, Key.ctrl("s"))) {
+        this.requestSave();
+        return;
+      }
       this.submenuComponent.handleInput?.(data);
       return;
     }
 
     const items = this.getSelectableItems();
 
-    if (matchesKey(data, Key.up)) {
+    if (matchesKey(data, Key.ctrl("s"))) {
+      this.requestSave();
+    } else if (matchesKey(data, Key.up)) {
       if (items.length === 0) return;
       this.selectedIndex =
         this.selectedIndex === 0 ? items.length - 1 : this.selectedIndex - 1;
@@ -338,7 +353,7 @@ export class SectionedSettings implements Component {
           }
           this.requestRender();
         },
-        { requestRender: this.requestRender },
+        { requestRender: this.requestRender, requestSave: this.requestSave },
       );
     } else if (item.values && item.values.length > 0) {
       const currentIndex = item.values.indexOf(item.currentValue);

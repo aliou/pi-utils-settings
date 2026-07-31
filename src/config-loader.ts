@@ -526,3 +526,26 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   }
 }
 
+/**
+ * Create a ConfigStore that delegates to a ConfigLoader.
+ *
+ * Replaces hand-written wrapper objects. Pass `scopes` to expose only a
+ * subset of the loader's enabled scopes to the settings UI.
+ */
+export function createConfigStore<
+  TConfig extends object,
+  TResolved extends object,
+>(
+  loader: ConfigLoader<TConfig, TResolved>,
+  options?: { scopes?: Scope[] },
+): ConfigStore<TConfig, TResolved> {
+  const scopes = options?.scopes;
+  return {
+    getConfig: () => loader.getConfig(),
+    getRawConfig: (scope) => loader.getRawConfig(scope),
+    hasScope: (scope) => loader.hasScope(scope),
+    hasConfig: (scope) => loader.hasConfig(scope),
+    getEnabledScopes: () => scopes ?? loader.getEnabledScopes(),
+    save: (scope, config) => loader.save(scope, config),
+  };
+}

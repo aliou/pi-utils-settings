@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { assert, test as baseTest, describe, expect, vi } from "vitest";
 import {
   ConfigLoader,
+  createConfigStore,
   type MigrationContext,
 } from "./config-loader";
 
@@ -823,3 +824,46 @@ describe("ConfigLoader versioned migrations", () => {
   });
 });
 
+describe("createConfigStore", () => {
+  const configName = "pi-utils-settings-test-store";
+
+  test("delegates to the loader and respects the scope filter", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { foo: "stored" });
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      { scopes: ["global", "local"] },
+    );
+    await loader.load();
+
+    const store = createConfigStore(loader, { scopes: ["global"] });
+
+    expect(store.getEnabledScopes()).toEqual(["global"]);
+    expect(store.hasScope("local")).toBe(true);
+    expect(store.hasConfig("global")).toBe(true);
+    expect(store.getRawConfig("global")?.foo).toBe("stored");
+    expect(store.getConfig().foo).toBe("stored");
+
+    await store.save("global", { foo: "updated" });
+    expect(loader.getRawConfig("global")?.foo).toBe("updated");
+  });
+
+  test("defaults to the loader's enabled scopes", async ({ testDir }) => {
+    currentTestDir = testDir;
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      { scopes: ["global", "memory"] },
+    );
+    await loader.load();
+
+    const store = createConfigStore(loader);
+    expect(store.getEnabledScopes()).toEqual(["global", "memory"]);
+  });
+});

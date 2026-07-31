@@ -102,7 +102,12 @@ const DEFAULT_CONFIG: ResolvedExampleConfig = {
 const migrations: Migration<ExampleConfig>[] = [
   {
     name: "rename-font-size",
-    shouldRun: (config) => "fontsize" in (config.appearance ?? {}),
+    // Versioned migrations default shouldRun to "config version < version"
+    // and stamp the file after running. Keep an explicit shouldRun when the
+    // migration must also gate on content (old installs without a stamp).
+    version: 1,
+    shouldRun: (config, ctx) =>
+      ctx.fromVersion < 1 || "fontsize" in (config.appearance ?? {}),
     message: (before) =>
       `[example] Config migrated: appearance.fontsize renamed to appearance.fontSize (was ${(before.appearance as Record<string, unknown>)?.fontsize}).`,
     run: (config, _filePath) => {

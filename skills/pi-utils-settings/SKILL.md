@@ -347,6 +347,33 @@ const migrations: Migration<MyConfig>[] = [
 new ConfigLoader("my-ext", defaults, { migrations });
 ```
 
+### Versioned migrations
+
+Declare a monotonic integer `version` on each migration. `shouldRun` then defaults to "config version < migration version", and the loader stamps the config file with the highest applied version. `shouldRun`, `run`, and the message factory receive a `MigrationContext` (`filePath`, `fromVersion`, `toVersion`, `appliedMigrations`).
+
+```typescript
+const migrations: Migration<MyConfig>[] = [
+  {
+    name: "v1-features",
+    version: 1,
+    run: (c) => ({ ...c, features: {} }),
+  },
+  {
+    name: "v2-rename-field",
+    version: 2,
+    run: (c, _filePath, ctx) => {
+      // ctx.appliedMigrations === ["v1-features"] when chained
+      const { oldField, ...rest } = c as any;
+      return { ...rest, newField: oldField };
+    },
+  },
+];
+
+configLoader.getVersion(); // highest stamped version across scopes
+```
+
+A migration with neither `version` nor `shouldRun` throws at construction. Provide both to gate on content while still stamping.
+
 ### Migration messages
 
 Migrations can declare an optional `message` that is queued when the migration runs successfully. Extensions drain these messages and display them to the user (e.g. via `ctx.ui.notify` in `session_start`).
@@ -523,11 +550,13 @@ Note: `packages/ui/` is a separate package with different primitives (panels, to
 
 ## Save Model
 
-All changes are held as in-memory drafts until Ctrl+S. Esc exits without saving. Dirty tabs show a `*` marker. After save, `onSave` callback fires (use to reload runtime state).
+All changes are held as in-memory drafts until Ctrl+S. Ctrl+S saves from any depth, including inside open submenus — submenus commit edits to the draft on every mutation. Esc exits without saving. Dirty tabs show a `*` marker. After save, `onSave` callback fires (use to reload runtime state).
+
+`Wizard` is the exception: it uses Ctrl+S for its own submit and is designed as a standalone command UI (onboarding/auth), not as a `registerSettingsCommand` submenu.
 
 ## JSON Schema for Settings Files
 
-Extensions can ship a JSON Schema so editors provide autocomplete and validation for settings files. The schema is auto-generated from the `TConfig` interface via `ts-json-schema-generator`, and `ConfigLoader` injects a `$schema` field into saved files.
+Extensions can ship a JSON Schema so editors provide autocomplete and validation for settings files. The schema is generated from the `TConfig` interface with the bundled `pi-settings-schema` CLI (wraps `ts-json-schema-generator`, injects the reserved `$schema`/`version` properties), and `ConfigLoader` injects a `$schema` field into saved files.
 
 See `references/json-schema.md` (relative to this skill directory) for the full setup guide: JSDoc conventions, `gen:schema`/`check:schema` scripts, `buildSchemaUrl` wiring, CI integration, and testing commands.
 

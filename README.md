@@ -47,6 +47,35 @@ await configLoader.load();
 const config = configLoader.getConfig(); // ResolvedConfig (defaults merged with global + local)
 ```
 
+#### Versioned migrations
+
+Migrations can declare a monotonic integer `version`. When set, `shouldRun` defaults to "config version < migration version" and the loader stamps the config file with the highest applied version. `shouldRun`, `run`, and the message factory receive a `MigrationContext` with the file path, the versions before/after, and the names of migrations already applied during the load.
+
+```typescript
+const migrations: Migration<MyConfig>[] = [
+  {
+    name: "v1-features",
+    version: 1,
+    // No shouldRun needed: runs when config.version < 1.
+    run: (config) => ({ ...config, features: {} }),
+  },
+  {
+    name: "v2-rename-theme",
+    version: 2,
+    run: (config, _filePath, ctx) => {
+      // ctx.appliedMigrations: ["v1-features"], ctx.fromVersion: 1, ctx.toVersion: 2
+      const { theme, ...rest } = config as MyConfig & { theme?: string };
+      return { ...rest, appearance: { theme } };
+    },
+  },
+];
+
+await configLoader.load();
+configLoader.getVersion(); // highest stamped version across scopes
+```
+
+Provide both `version` and `shouldRun` to gate on content while still stamping (e.g., `shouldRun: (c) => c.legacy !== undefined`). Migrations with neither throw at construction.
+
 #### JSON Schema support
 
 `ConfigLoader` can inject a `$schema` field into settings files, giving editors autocomplete and validation. Pair it with `buildSchemaUrl` and auto-generated schemas from `ts-json-schema-generator`.
@@ -71,16 +100,18 @@ const loader = new ConfigLoader<MyConfig, ResolvedConfig>(
 
 When `schemaUrl` is set, `save()` writes `$schema` as the first key in the JSON file and `load()` strips it before returning config to callers.
 
-To generate the schema from your `TConfig` type, add these scripts to your extension's `package.json`:
+To generate the schema from your `TConfig` type, install `ts-json-schema-generator` as a devDependency and use the bundled `pi-settings-schema` CLI. It wraps the generator and injects the reserved `$schema` and `version` properties, so your config type doesn't need them:
 
 ```json
 {
-  "gen:schema": "ts-json-schema-generator --path src/config.ts --type MyConfig --no-type-check -o schema.json",
-  "check:schema": "ts-json-schema-generator --path src/config.ts --type MyConfig --no-type-check -o /tmp/schema-check.json && diff -q schema.json /tmp/schema-check.json"
+  "gen:schema": "pi-settings-schema -p src/config.ts -t MyConfig -o schema.json --version 2",
+  "check:schema": "pi-settings-schema -p src/config.ts -t MyConfig -o schema.json --version 2 --check"
 }
 ```
 
-Run `pnpm gen:schema` to produce `schema.json`, commit it, and add `"schema.json"` to `files` in `package.json` so it ships with your npm package. Add `check:schema` to CI to catch drift. If the extension is not published to npm, commit `schema.json` somewhere public and pass a custom `template` or `baseUrl` to `buildSchemaUrl`.
+Run `pnpm gen:schema` to produce `schema.json`, commit it, and add `"schema.json"` to `files` in `package.json` so it ships with your npm package. Add `check:schema` to CI to catch drift (exits 1 when the committed schema is stale). `--version` documents the current migration version in the schema. If the extension is not published to npm, commit `schema.json` somewhere public and pass a custom `template` or `baseUrl` to `buildSchemaUrl`.
+
+The same logic is available programmatically as `generateSettingsSchema(options)` and `finalizeSchema(schema, options)`.
 
 An optional `afterMerge` hook runs after the deep merge for logic that can't be expressed as a simple merge (e.g., one field replacing another):
 
@@ -100,6 +131,8 @@ new ConfigLoader("my-ext", defaults, {
 Creates a `/name:settings` command with scope tabs (Global/Local/Memory), draft-based editing, and Ctrl+S to save.
 
 All changes (boolean toggles, enum cycling, submenu edits) are held in memory as drafts. Nothing is written to disk until the user presses Ctrl+S. Esc exits without saving by default. Dirty tabs show a `*` marker. Use `onBeforeClose` to intercept Esc, for example to confirm discarding unsaved drafts.
+
+Ctrl+S saves from any depth, including inside open submenus (`ArrayEditor`, `SettingsDetailEditor`, `FuzzySelector`, ...). Submenus commit edits to the draft on every mutation, so a nested save always persists the latest state. Standalone component users can pass `requestSave` in the component options to get the same behavior outside `registerSettingsCommand`.
 
 ```typescript
 import { registerSettingsCommand, type SettingsSection } from "@aliou/pi-utils-settings";
@@ -408,6 +441,17 @@ const detail = new SettingsDetailEditor({
 
 ### ConfigStore interface
 
+`createConfigStore(loader, { scopes? })` adapts a `ConfigLoader` to the `ConfigStore` interface, optionally exposing only a subset of scopes to the settings UI:
+
+```typescript
+import { createConfigStore } from "@aliou/pi-utils-settings";
+
+registerSettingsCommand(pi, {
+  // ...
+  configStore: createConfigStore(configLoader, { scopes: ["global", "local"] }),
+});
+```
+
 Extensions with custom config loaders can implement `ConfigStore` directly instead of using `ConfigLoader`:
 
 ```typescript
@@ -437,6 +481,7 @@ interface ConfigStore<TConfig, TResolved> {
 - `getNestedValue(obj, "a.b.c")`: Get a deeply nested value by dot-separated path.
 - `getSettingsTheme(theme)`: Build a combined settings theme (`SettingsTheme`) usable by both settings-list components and full-theme components like `Wizard`.
 - `buildSchemaUrl(packageName, version, options?)`: Build a URL to a JSON Schema file for `$schema` injection (defaults to unpkg, supports custom `baseUrl` or `template`).
+- `pi-settings-schema` CLI: Generate a config JSON schema from a TS type, injecting `$schema`/`version` (`finalizeSchema`/`generateSettingsSchema` for programmatic use).
 
 ## Exports
 
@@ -483,11 +528,17 @@ export {
 export {
   ConfigLoader,
   type ConfigStore,
+  createConfigStore,
   type Migration,
+  type MigrationContext,
   type Scope,
 } from "./src/config-loader";
 export { getNestedValue, setNestedValue } from "./src/helpers";
 export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./src/schema";
+export {
+  finalizeSchema,
+  generateSettingsSchema,
+} from "./src/schema-gen.mjs";
 export {
   type ExtraSettingsTab,
   type ExtraSettingsTabChangeContext,

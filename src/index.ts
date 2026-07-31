@@ -57,6 +57,7 @@ export {
 export {
   ConfigLoader,
   type ConfigStore,
+  createConfigStore,
   type Migration,
   type MigrationContext,
   type MigrationMessageFactory,

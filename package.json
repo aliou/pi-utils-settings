@@ -8,6 +8,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "bin": {
+    "pi-settings-schema": "bin/pi-settings-schema.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/aliou/pi-utils-settings"
@@ -16,6 +19,7 @@
     "access": "public"
   },
   "files": [
+    "bin",
     "src",
     "skills",
     "README.md",
@@ -40,10 +44,14 @@
     "@aliou/pi-utils-ui": "^0.4.1"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.74.0 <1"
+    "@earendil-works/pi-coding-agent": ">=0.74.0 <1",
+    "ts-json-schema-generator": ">=2.4.0 <3"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "ts-json-schema-generator": {
       "optional": true
     }
   },
@@ -55,6 +63,7 @@
     "@earendil-works/pi-coding-agent": "0.74.0",
     "@earendil-works/pi-tui": "0.74.0",
     "@types/node": "^25.0.10",
+    "ts-json-schema-generator": "^2.4.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },

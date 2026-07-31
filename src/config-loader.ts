@@ -26,6 +26,20 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 export type Scope = "global" | "local" | "memory";
 
 /**
+ * Context passed to migration hooks.
+ */
+export interface MigrationContext {
+  /** Path of the config file being migrated. */
+  filePath: string;
+  /** Names of migrations already applied during this load, in order. */
+  appliedMigrations: readonly string[];
+  /** Config version before this migration runs (after prior migrations). 0 if unset. */
+  fromVersion: number;
+  /** This migration's declared version, or fromVersion when unset. */
+  toVersion: number;
+}
+
+/**
  * Function that produces an optional migration message.
  * Receives the config before and after the migration ran.
  * Return undefined to skip the message.
@@ -34,18 +48,33 @@ export type MigrationMessageFactory<TConfig> = (
   before: TConfig,
   after: TConfig,
   filePath: string,
+  ctx: MigrationContext,
 ) => string | undefined;
 
 /**
  * A migration that transforms a config from one version to another.
  * Migrations are applied in order during load(). If any migration
  * returns a modified config, the result is saved back to disk.
+ *
+ * Migrations can declare a monotonic integer `version`. When set and
+ * `shouldRun` is omitted, the migration runs when the config's stamped
+ * `version` is lower. After a versioned migration runs, the loader stamps
+ * the config file with the highest version applied.
  */
 export interface Migration<TConfig> {
   /** Name for logging on failure. */
   name: string;
-  /** Return true if this migration should run on the given config. */
-  shouldRun: (config: TConfig) => boolean;
+  /**
+   * Monotonic integer config version this migration brings the config to.
+   * When set, enables the default `shouldRun` (config version < version)
+   * and automatic version stamping after a successful run.
+   */
+  version?: number;
+  /**
+   * Return true if this migration should run on the given config.
+   * Optional when `version` is set: defaults to a version comparison.
+   */
+  shouldRun?: (config: TConfig, ctx: MigrationContext) => boolean;
   /**
    * Optional user-facing message emitted when this migration
    * successfully runs. Evaluated against the pre-migration config.
@@ -54,10 +83,15 @@ export interface Migration<TConfig> {
    */
   message?: string | MigrationMessageFactory<TConfig>;
   /**
-   * Transform the config. Receives the file path for backup/logging.
+   * Transform the config. Receives the file path for backup/logging
+   * and a context with version and applied-migration history.
    * Return the migrated config.
    */
-  run: (config: TConfig, filePath: string) => Promise<TConfig> | TConfig;
+  run: (
+    config: TConfig,
+    filePath: string,
+    ctx: MigrationContext,
+  ) => Promise<TConfig> | TConfig;
 }
 
 /**
@@ -72,6 +106,21 @@ export interface ConfigStore<TConfig extends object, TResolved extends object> {
   hasConfig(scope: Scope): boolean;
   getEnabledScopes(): Scope[];
   save(scope: Scope, config: TConfig): Promise<void>;
+}
+
+/**
+ * Read the stamped config version from a raw config object.
+ * Returns 0 when unset or not a finite number.
+ */
+function readVersion(config: object): number {
+  const value = (config as Record<string, unknown>).version;
+  const version = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(version) ? version : 0;
+}
+
+/** Return a copy of the config with the version field stamped. */
+function stampVersion<TConfig>(config: TConfig, version: number): TConfig {
+  return { ...(config as object), version } as TConfig;
 }
 
 /**
@@ -160,6 +209,31 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     this.schemaUrl = options?.schemaUrl;
     this.afterMerge = options?.afterMerge;
 
+    let previousVersion: number | undefined;
+    for (const migration of this.migrations) {
+      if (!migration.shouldRun && migration.version === undefined) {
+        throw new Error(
+          `[settings] Migration "${migration.name}" needs shouldRun or version`,
+        );
+      }
+      if (migration.version !== undefined) {
+        if (!Number.isSafeInteger(migration.version) || migration.version < 0) {
+          throw new Error(
+            `[settings] Migration "${migration.name}" version must be a non-negative integer, got ${migration.version}`,
+          );
+        }
+        if (
+          previousVersion !== undefined &&
+          migration.version <= previousVersion
+        ) {
+          throw new Error(
+            `[settings] Migration "${migration.name}" version ${migration.version} must be greater than the previous versioned migration (${previousVersion})`,
+          );
+        }
+        previousVersion = migration.version;
+      }
+    }
+
     // Set up paths based on enabled scopes
     this.globalPath = this.scopes.includes("global")
       ? resolve(getAgentDir(), `extensions/${extensionName}.json`)
@@ -241,6 +315,23 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     return this.pendingMessages.splice(0);
   }
 
+  /**
+   * Read the stamped config version. With a scope, reads that scope's raw
+   * config. Without a scope, returns the highest version across raw configs
+   * (0 when no config or version exists). Requires load() first.
+   */
+  getVersion(scope?: Scope): number {
+    if (scope) {
+      const raw = this.getRawConfig(scope);
+      return raw ? readVersion(raw) : 0;
+    }
+    let version = 0;
+    for (const raw of [this.globalConfig, this.localConfig]) {
+      if (raw) version = Math.max(version, readVersion(raw));
+    }
+    return version;
+  }
+
   /** Save config and reload state (except memory which just updates in place). */
   async save(scope: Scope, config: TConfig): Promise<void> {
     if (!this.hasScope(scope)) {
@@ -291,21 +382,43 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   ): Promise<TConfig> {
     let current = config;
     let changed = false;
+    let currentVersion = readVersion(config);
+    const appliedMigrations: string[] = [];
 
     for (const migration of this.migrations) {
-      if (!migration.shouldRun(current)) continue;
+      const ctx: MigrationContext = {
+        filePath,
+        appliedMigrations,
+        fromVersion: currentVersion,
+        toVersion: migration.version ?? currentVersion,
+      };
+
+      const shouldRun = migration.shouldRun
+        ? migration.shouldRun(current, ctx)
+        : currentVersion < (migration.version as number);
+      if (!shouldRun) continue;
 
       const before = current;
 
       try {
-        current = await migration.run(current, filePath);
+        current = await migration.run(current, filePath, ctx);
         changed = true;
+        appliedMigrations.push(migration.name);
+
+        if (
+          migration.version !== undefined &&
+          migration.version > currentVersion
+        ) {
+          currentVersion = migration.version;
+          current = stampVersion(current, currentVersion);
+        }
 
         const message = this.resolveMigrationMessage(
           migration,
           before,
           current,
           filePath,
+          ctx,
         );
         if (message) {
           this.pendingMessages.push(message);
@@ -314,6 +427,10 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
         console.error(
           `[settings] Migration "${migration.name}" failed for ${filePath}: ${error}`,
         );
+        // Stop after a failed versioned migration: continuing would let a
+        // later migration stamp a higher version, permanently skipping the
+        // failed one on subsequent loads.
+        if (migration.version !== undefined) break;
       }
     }
 
@@ -335,12 +452,13 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     before: TConfig,
     after: TConfig,
     filePath: string,
+    ctx: MigrationContext,
   ): string | undefined {
     if (!migration.message) return undefined;
 
     try {
       return typeof migration.message === "function"
-        ? migration.message(before, after, filePath)
+        ? migration.message(before, after, filePath, ctx)
         : migration.message;
     } catch (error) {
       console.error(
@@ -407,3 +525,4 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     await writeFile(path, `${JSON.stringify(output, null, 2)}\n`, "utf-8");
   }
 }
+

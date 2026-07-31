@@ -58,11 +58,19 @@ export {
   ConfigLoader,
   type ConfigStore,
   type Migration,
+  type MigrationContext,
   type MigrationMessageFactory,
   type Scope,
 } from "./config-loader";
 export { getNestedValue, setNestedValue } from "./helpers";
 export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./schema";
+export {
+  type FinalizeSchemaOptions,
+  finalizeSchema,
+  type GenerateSchemaOptions,
+  type GenerateSchemaResult,
+  generateSettingsSchema,
+} from "./schema-gen.mjs";
 export {
   type ExtraSettingsTab,
   type ExtraSettingsTabChangeContext,

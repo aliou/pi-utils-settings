@@ -824,6 +824,250 @@ describe("ConfigLoader versioned migrations", () => {
   });
 });
 
+describe("ConfigLoader semver migrations", () => {
+  const configName = "pi-utils-settings-test-semver";
+
+  test("throws on invalid semver versions", async ({ testDir }) => {
+    currentTestDir = testDir;
+
+    for (const version of ["1.0.0-beta", "1.0.0+build", "not-a-version"]) {
+      expect(
+        () =>
+          new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+            migrations: [{ name: "bad", version, run: (c) => c }],
+          }),
+      ).toThrow(/semver string/);
+    }
+  });
+
+  test("throws on non-monotonic semver versions", async ({ testDir }) => {
+    currentTestDir = testDir;
+
+    expect(
+      () =>
+        new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+          migrations: [
+            { name: "v2", version: "2.0.0", run: (c) => c },
+            { name: "v1", version: "1.10.0", run: (c) => c },
+          ],
+        }),
+    ).toThrow(/must be greater than the previous/);
+
+    // Equal versions are also rejected.
+    expect(
+      () =>
+        new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+          migrations: [
+            { name: "v1", version: "1.2.0", run: (c) => c },
+            { name: "v1-again", version: "1.2.0", run: (c) => c },
+          ],
+        }),
+    ).toThrow(/must be greater than the previous/);
+  });
+
+  test("throws when mixing version schemes", async ({ testDir }) => {
+    currentTestDir = testDir;
+
+    expect(
+      () =>
+        new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+          migrations: [
+            { name: "v1", version: 1, run: (c) => c },
+            { name: "v2", version: "2.0.0", run: (c) => c },
+          ],
+        }),
+    ).toThrow(/mixes version schemes/);
+
+    expect(
+      () =>
+        new ConfigLoader<TestConfig, TestResolved>(configName, DEFAULTS, {
+          migrations: [
+            { name: "v1", version: "1.0.0", run: (c) => c },
+            { name: "v2", version: 2, run: (c) => c },
+          ],
+        }),
+    ).toThrow(/mixes version schemes/);
+  });
+
+  test("orders semver numerically, not lexically", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { version: "0.9.0" as never, foo: "old" });
+
+    // "0.9.0" > "0.10.0" lexically, but 0.9.0 < 0.10.0 in semver order.
+    const run = vi.fn((c: TestConfig) => ({ ...c, foo: "new" }));
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [{ name: "v1", version: "0.10.0", run }],
+      },
+    );
+
+    await loader.load();
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(loader.getVersion()).toBe("0.10.0");
+  });
+
+  test("stamps a semver string on the config file", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    const path = addGlobalConfig(configName, { foo: "old" });
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          { name: "v1", version: "1.0.0", run: (c) => ({ ...c, foo: "a" }) },
+          { name: "v2", version: "1.2.0", run: (c) => ({ ...c, foo: "b" }) },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    expect(loader.getRawConfig("global")?.version).toBe("1.2.0");
+    expect(loader.getVersion()).toBe("1.2.0");
+    const onDisk = JSON.parse(readFileSync(path, "utf-8"));
+    expect(onDisk.version).toBe("1.2.0");
+    expect(onDisk.foo).toBe("b");
+  });
+
+  test("default shouldRun runs below version and skips at/above", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { version: "1.2.0" as never, foo: "old" });
+
+    const run = vi.fn((c: TestConfig) => c);
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          { name: "v1", version: "1.0.0", run },
+          { name: "v2", version: "1.2.0", run },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    // Config is at 1.2.0: both migrations skip (at or above their version).
+    expect(run).not.toHaveBeenCalled();
+    expect(loader.getVersion()).toBe("1.2.0");
+  });
+
+  test("accepts shorthand semver and treats missing parts as 0", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { version: "1.2" as never, foo: "old" });
+
+    const run = vi.fn((c: TestConfig) => c);
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [{ name: "v1", version: "1.2.0", run }],
+      },
+    );
+
+    await loader.load();
+
+    // "1.2" reads as 1.2.0, which is not below 1.2.0: skip.
+    expect(run).not.toHaveBeenCalled();
+    expect(loader.getVersion()).toBe("1.2");
+  });
+
+  test("reads a legacy integer stamp as its semver form", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { version: 0, foo: "old" });
+
+    const run = vi.fn((c: TestConfig) => ({ ...c, foo: "new" }));
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [{ name: "v1", version: "1.0.0", run }],
+      },
+    );
+
+    await loader.load();
+
+    // Legacy stamp 0 reads as 0.0.0, which is below 1.0.0: run and re-stamp.
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(loader.getVersion()).toBe("1.0.0");
+  });
+
+  test("returns the scheme zero when no config exists", async ({ testDir }) => {
+    currentTestDir = testDir;
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [{ name: "v1", version: "1.0.0", run: (c) => c }],
+      },
+    );
+
+    await loader.load();
+
+    expect(loader.getVersion()).toBe("0.0.0");
+  });
+
+  test("context reports semver fromVersion/toVersion", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    addGlobalConfig(configName, { version: "1.0.0" as never, foo: "old" });
+
+    let received: MigrationContext | undefined;
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      {
+        scopes: ["global"],
+        migrations: [
+          {
+            name: "v1",
+            version: "1.1.0",
+            message: (_before, _after, _filePath, ctx) => {
+              received = ctx;
+              return "migrated";
+            },
+            run: (c) => ({ ...c, foo: "new" }),
+          },
+        ],
+      },
+    );
+
+    await loader.load();
+
+    assert(received, "context should be passed to the message factory");
+    expect(received.fromVersion).toBe("1.0.0");
+    expect(received.toVersion).toBe("1.1.0");
+  });
+});
+
 describe("createConfigStore", () => {
   const configName = "pi-utils-settings-test-store";
 

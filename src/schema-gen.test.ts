@@ -24,8 +24,15 @@ describe("finalizeSchema", () => {
     const root = schema.definitions.MyConfig as Record<string, unknown>;
     const props = root.properties as Record<string, unknown>;
     expect(props.$schema).toEqual({ type: "string" });
+    // Accepts both integer and semver-string stamps.
     expect(props.version).toEqual({
-      type: "number",
+      anyOf: [
+        { type: "integer", minimum: 0 },
+        {
+          type: "string",
+          pattern: "^\\d{1,15}(\\.\\d{1,15})?(\\.\\d{1,15})?$",
+        },
+      ],
       description: "Config schema version, stamped by migrations.",
     });
     expect(root.additionalProperties).toBe(false);
@@ -53,10 +60,21 @@ describe("finalizeSchema", () => {
     finalizeSchema(schema, { version: 3 });
 
     const props = schema.properties as JsonObject;
-    expect(props.version).toEqual({
-      type: "number",
+    expect(props.version).toMatchObject({
       description:
         "Config schema version, stamped by migrations. Current version: 3.",
+    });
+  });
+
+  test("documents a semver version when provided", () => {
+    const schema: JsonObject = { type: "object", properties: {} };
+
+    finalizeSchema(schema, { version: "1.2.0" });
+
+    const props = schema.properties as JsonObject;
+    expect(props.version).toMatchObject({
+      description:
+        "Config schema version, stamped by migrations. Current version: 1.2.0.",
     });
   });
 
@@ -76,11 +94,11 @@ describe("finalizeSchema", () => {
     expect(schema).toEqual(afterFirst);
     const props = schema.properties as JsonObject;
     // Source-type shapes for reserved keys are overwritten.
-    expect(props.version).toEqual({
-      type: "number",
+    expect(props.version).toMatchObject({
       description:
         "Config schema version, stamped by migrations. Current version: 1.",
     });
+    expect((props.version as JsonObject).type).toBeUndefined();
     expect(props.foo).toEqual({ type: "string" });
   });
 });
@@ -107,7 +125,7 @@ describe("generateSettingsSchema", () => {
       const rootName = (schema.$ref as string).slice("#/definitions/".length);
       const root = schema.definitions[rootName];
       expect(root.properties.$schema).toEqual({ type: "string" });
-      expect(root.properties.version.type).toBe("number");
+      expect(root.properties.version.anyOf).toHaveLength(2);
       expect(root.properties.enabled).toEqual({ type: "boolean" });
     } finally {
       rmSync(dir, { recursive: true, force: true });

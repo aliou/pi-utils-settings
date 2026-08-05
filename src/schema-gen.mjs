@@ -10,12 +10,18 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 /** Placeholder resolved against the consumer's installed peer dependency. */
 const GENERATOR_PACKAGE = "ts-json-schema-generator";
 
+/** Semver core pattern, matching the loader's accepted version strings. */
+const SEMVER_PATTERN_SOURCE = "^\\d{1,15}(\\.\\d{1,15})?(\\.\\d{1,15})?$";
+
 /**
  * Inject the reserved `$schema` and `version` properties into the root
  * definition of a schema produced by ts-json-schema-generator.
  *
+ * The `version` property accepts a non-negative integer or a semver
+ * string, matching the values ConfigLoader migrations can stamp.
+ *
  * @param {Record<string, any>} schema
- * @param {{ version?: number }} [options]
+ * @param {{ version?: number | string }} [options]
  * @returns {Record<string, any>}
  */
 export function finalizeSchema(schema, options = {}) {
@@ -29,7 +35,13 @@ export function finalizeSchema(schema, options = {}) {
   root.properties ??= {};
   // Reserved keys are owned by the loader: overwrite any source-type shape.
   root.properties.$schema = { type: "string" };
-  root.properties.version = { type: "number", description };
+  root.properties.version = {
+    anyOf: [
+      { type: "integer", minimum: 0 },
+      { type: "string", pattern: SEMVER_PATTERN_SOURCE },
+    ],
+    description,
+  };
 
   return schema;
 }
@@ -52,7 +64,7 @@ function resolveRootDefinition(schema) {
  * @param {string} options.type Root type/interface name
  * @param {string} options.out Output schema file
  * @param {string} [options.tsconfig] tsconfig path
- * @param {number} [options.version] Current migration version to document
+ * @param {number | string} [options.version] Current migration version to document
  * @param {boolean} [options.check] Verify the committed schema is current
  * @param {boolean} [options.skipTypeCheck] Default true
  * @param {Record<string, any>} [options.extra] Extra generator config

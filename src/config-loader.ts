@@ -33,10 +33,13 @@ export interface MigrationContext {
   filePath: string;
   /** Names of migrations already applied during this load, in order. */
   appliedMigrations: readonly string[];
-  /** Config version before this migration runs (after prior migrations). 0 if unset. */
-  fromVersion: number;
+  /**
+   * Config version before this migration runs (after prior migrations).
+   * 0 (numeric scheme) or "0.0.0" (semver scheme) if unset.
+   */
+  fromVersion: number | string;
   /** This migration's declared version, or fromVersion when unset. */
-  toVersion: number;
+  toVersion: number | string;
 }
 
 /**
@@ -56,20 +59,29 @@ export type MigrationMessageFactory<TConfig> = (
  * Migrations are applied in order during load(). If any migration
  * returns a modified config, the result is saved back to disk.
  *
- * Migrations can declare a monotonic integer `version`. When set and
- * `shouldRun` is omitted, the migration runs when the config's stamped
- * `version` is lower. After a versioned migration runs, the loader stamps
- * the config file with the highest version applied.
+ * Migrations can declare a monotonic `version`: either a non-negative
+ * integer or a semver string (e.g. the extension's package version).
+ * When set and `shouldRun` is omitted, the migration runs when the
+ * config's stamped `version` is lower. After a versioned migration runs,
+ * the loader stamps the config file with the highest version applied.
+ *
+ * All versioned migrations in one loader must use the same scheme:
+ * all integers or all semver strings (no prerelease tags). Mixing
+ * schemes throws at construction. Extensions that already stamp integer
+ * versions should keep integers; switching to semver changes the
+ * ordering (e.g. a stamped 3 reads as 3.0.0, which is above "1.2.0").
  */
 export interface Migration<TConfig> {
   /** Name for logging on failure. */
   name: string;
   /**
-   * Monotonic integer config version this migration brings the config to.
+   * Monotonic config version this migration brings the config to.
+   * A non-negative integer, or a semver string without prerelease/build
+   * metadata (e.g. "1.2.0"; "1.2" reads as "1.2.0").
    * When set, enables the default `shouldRun` (config version < version)
    * and automatic version stamping after a successful run.
    */
-  version?: number;
+  version?: number | string;
   /**
    * Return true if this migration should run on the given config.
    * Optional when `version` is set: defaults to a version comparison.
@@ -109,17 +121,97 @@ export interface ConfigStore<TConfig extends object, TResolved extends object> {
 }
 
 /**
- * Read the stamped config version from a raw config object.
- * Returns 0 when unset or not a finite number.
+ * Version scheme used by a loader's versioned migrations.
+ * All versioned migrations in one loader must share the same scheme.
  */
-function readVersion(config: object): number {
+type VersionScheme = "number" | "semver";
+
+/**
+ * Helper for config types used with versioned migrations.
+ * The loader stamps a `version` field whose type matches the loader's
+ * version scheme: number for integer migrations, string for semver.
+ * Use `YourConfig & VersionedConfig` (or declare `version?: number | string`)
+ * so the stamped value typechecks.
+ */
+export interface VersionedConfig {
+  version?: number | string;
+}
+
+/** Semver core without prerelease/build metadata; minor/patch may be omitted. */
+const SEMVER_PATTERN = /^(\d{1,15})(?:\.(\d{1,15}))?(?:\.(\d{1,15}))?$/;
+
+function isSemverString(value: string): boolean {
+  return SEMVER_PATTERN.test(value);
+}
+
+/**
+ * Parse a semver string into [major, minor, patch].
+ * Missing minor/patch default to 0, so "1.2" reads as 1.2.0.
+ * Returns null when the value is not a plain semver core.
+ */
+function parseSemver(value: string): [number, number, number] | null {
+  const match = SEMVER_PATTERN.exec(value.trim());
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
+}
+
+/** Compare two semver strings. Returns negative, 0, or positive. */
+function compareSemver(a: string, b: string): number {
+  const pa: [number, number, number] = parseSemver(a) ?? [0, 0, 0];
+  const pb: [number, number, number] = parseSemver(b) ?? [0, 0, 0];
+  for (const i of [0, 1, 2] as const) {
+    if (pa[i] !== pb[i]) return pa[i] - pb[i];
+  }
+  return 0;
+}
+
+/**
+ * Compare two versions of the same scheme.
+ * Returns negative, 0, or positive.
+ */
+function compareVersions(
+  a: number | string,
+  b: number | string,
+  scheme: VersionScheme,
+): number {
+  if (scheme === "semver") return compareSemver(String(a), String(b));
+  return Number(a) - Number(b);
+}
+
+/** The version treated as "unset" for a scheme. */
+function zeroVersion(scheme: VersionScheme): number | string {
+  return scheme === "semver" ? "0.0.0" : 0;
+}
+
+/**
+ * Read the stamped config version from a raw config object.
+ * Numeric scheme: returns 0 when unset or not a finite number.
+ * Semver scheme: returns "0.0.0" when unset or unparseable; a bare
+ * legacy integer stamp (e.g. 3) reads as its semver form (3.0.0).
+ */
+function readVersion(
+  config: object,
+  scheme: VersionScheme = "number",
+): number | string {
   const value = (config as Record<string, unknown>).version;
+  if (scheme === "semver") {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (isSemverString(trimmed)) return trimmed;
+    } else if (typeof value === "number" && Number.isSafeInteger(value)) {
+      return String(value);
+    }
+    return "0.0.0";
+  }
   const version = typeof value === "number" ? value : Number(value);
   return Number.isFinite(version) ? version : 0;
 }
 
 /** Return a copy of the config with the version field stamped. */
-function stampVersion<TConfig>(config: TConfig, version: number): TConfig {
+function stampVersion<TConfig>(
+  config: TConfig,
+  version: number | string,
+): TConfig {
   return { ...(config as object), version } as TConfig;
 }
 
@@ -165,6 +257,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   private readonly defaults: TResolved;
   private readonly extensionName: string;
   private readonly migrations: Migration<TConfig>[];
+  private readonly versionScheme: VersionScheme;
   private readonly schemaUrl?: string;
   private readonly afterMerge?: (
     resolved: TResolved,
@@ -209,7 +302,8 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     this.schemaUrl = options?.schemaUrl;
     this.afterMerge = options?.afterMerge;
 
-    let previousVersion: number | undefined;
+    let previousVersion: number | string | undefined;
+    let scheme: VersionScheme | undefined;
     for (const migration of this.migrations) {
       if (!migration.shouldRun && migration.version === undefined) {
         throw new Error(
@@ -217,14 +311,37 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
         );
       }
       if (migration.version !== undefined) {
-        if (!Number.isSafeInteger(migration.version) || migration.version < 0) {
-          throw new Error(
-            `[settings] Migration "${migration.name}" version must be a non-negative integer, got ${migration.version}`,
-          );
+        if (typeof migration.version === "string") {
+          if (!isSemverString(migration.version)) {
+            throw new Error(
+              `[settings] Migration "${migration.name}" version must be a non-negative integer or a semver string without prerelease/build metadata, got ${migration.version}`,
+            );
+          }
+          if (scheme === "number") {
+            throw new Error(
+              `[settings] Migration "${migration.name}" mixes version schemes: earlier versioned migrations use integers, got semver string ${migration.version}`,
+            );
+          }
+          scheme = "semver";
+        } else {
+          if (
+            !Number.isSafeInteger(migration.version) ||
+            migration.version < 0
+          ) {
+            throw new Error(
+              `[settings] Migration "${migration.name}" version must be a non-negative integer, got ${migration.version}`,
+            );
+          }
+          if (scheme === "semver") {
+            throw new Error(
+              `[settings] Migration "${migration.name}" mixes version schemes: earlier versioned migrations use semver strings, got integer ${migration.version}`,
+            );
+          }
+          scheme = "number";
         }
         if (
           previousVersion !== undefined &&
-          migration.version <= previousVersion
+          compareVersions(migration.version, previousVersion, scheme) <= 0
         ) {
           throw new Error(
             `[settings] Migration "${migration.name}" version ${migration.version} must be greater than the previous versioned migration (${previousVersion})`,
@@ -233,6 +350,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
         previousVersion = migration.version;
       }
     }
+    this.versionScheme = scheme ?? "number";
 
     // Set up paths based on enabled scopes
     this.globalPath = this.scopes.includes("global")
@@ -318,16 +436,24 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   /**
    * Read the stamped config version. With a scope, reads that scope's raw
    * config. Without a scope, returns the highest version across raw configs
-   * (0 when no config or version exists). Requires load() first.
+   * (0 or "0.0.0" when no config or version exists, per the loader's
+   * version scheme). Requires load() first.
    */
-  getVersion(scope?: Scope): number {
+  getVersion(scope?: Scope): number | string {
     if (scope) {
       const raw = this.getRawConfig(scope);
-      return raw ? readVersion(raw) : 0;
+      return raw
+        ? readVersion(raw, this.versionScheme)
+        : zeroVersion(this.versionScheme);
     }
-    let version = 0;
+    let version = zeroVersion(this.versionScheme);
     for (const raw of [this.globalConfig, this.localConfig]) {
-      if (raw) version = Math.max(version, readVersion(raw));
+      if (raw) {
+        const candidate = readVersion(raw, this.versionScheme);
+        if (compareVersions(candidate, version, this.versionScheme) > 0) {
+          version = candidate;
+        }
+      }
     }
     return version;
   }
@@ -382,7 +508,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   ): Promise<TConfig> {
     let current = config;
     let changed = false;
-    let currentVersion = readVersion(config);
+    let currentVersion = readVersion(config, this.versionScheme);
     const appliedMigrations: string[] = [];
 
     for (const migration of this.migrations) {
@@ -395,7 +521,11 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
 
       const shouldRun = migration.shouldRun
         ? migration.shouldRun(current, ctx)
-        : currentVersion < (migration.version as number);
+        : compareVersions(
+            currentVersion,
+            migration.version as number | string,
+            this.versionScheme,
+          ) < 0;
       if (!shouldRun) continue;
 
       const before = current;
@@ -407,7 +537,11 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
 
         if (
           migration.version !== undefined &&
-          migration.version > currentVersion
+          compareVersions(
+            migration.version,
+            currentVersion,
+            this.versionScheme,
+          ) > 0
         ) {
           currentVersion = migration.version;
           current = stampVersion(current, currentVersion);

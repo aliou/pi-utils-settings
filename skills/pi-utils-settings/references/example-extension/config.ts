@@ -106,8 +106,12 @@ const migrations: Migration<ExampleConfig>[] = [
     // and stamp the file after running. Keep an explicit shouldRun when the
     // migration must also gate on content (old installs without a stamp).
     version: 1,
+    // Note: ctx.fromVersion is `number | string` (number for this loader
+    // since all versioned migrations use integers), so guard the type
+    // before comparing numerically.
     shouldRun: (config, ctx) =>
-      ctx.fromVersion < 1 || "fontsize" in (config.appearance ?? {}),
+      (typeof ctx.fromVersion === "number" && ctx.fromVersion < 1) ||
+      "fontsize" in (config.appearance ?? {}),
     message: (before) =>
       `[example] Config migrated: appearance.fontsize renamed to appearance.fontSize (was ${(before.appearance as Record<string, unknown>)?.fontsize}).`,
     run: (config, _filePath) => {

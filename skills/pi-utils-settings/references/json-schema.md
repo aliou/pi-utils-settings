@@ -30,7 +30,7 @@ Add `ts-json-schema-generator` as a devDep and add scripts to `package.json`:
 ```
 
 - `-t/--type` must match the exported user-facing config interface name (the partial one, not the resolved one).
-- `--version` documents the current migration version in the `version` property description. Bump it when you add a migration.
+- `--version` documents the current migration version in the `version` property description. Accepts a non-negative integer or a semver string (e.g. `--version 1.2.0`). Bump it when you add a migration. The injected `version` property accepts either an integer or a semver string, so both migration schemes validate in editors.
 - `--check` regenerates to a temp file, diffs against the committed schema, and exits 1 on drift.
 - Type checking is skipped by default (`--no-skip-type-check` to enable); config files may import packages that don't resolve in the generator's standalone typecheck context.
 

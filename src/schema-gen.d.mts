@@ -4,7 +4,7 @@
 
 export interface FinalizeSchemaOptions {
   /** Current migration version, documented in the `version` property. */
-  version?: number;
+  version?: number | string;
 }
 
 /**
@@ -26,7 +26,7 @@ export interface GenerateSchemaOptions {
   /** tsconfig path. */
   tsconfig?: string;
   /** Current migration version to document in the schema. */
-  version?: number;
+  version?: number | string;
   /** Verify the committed schema is current instead of writing. */
   check?: boolean;
   /** Skip the generator's type check. Default true. */

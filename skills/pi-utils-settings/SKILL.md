@@ -349,7 +349,9 @@ new ConfigLoader("my-ext", defaults, { migrations });
 
 ### Versioned migrations
 
-Declare a monotonic integer `version` on each migration. `shouldRun` then defaults to "config version < migration version", and the loader stamps the config file with the highest applied version. `shouldRun`, `run`, and the message factory receive a `MigrationContext` (`filePath`, `fromVersion`, `toVersion`, `appliedMigrations`).
+Declare a monotonic `version` on each migration: a non-negative integer or a semver string (e.g. the extension's package version, `"1.2.0"`; minor/patch may be omitted, no prerelease tags). All versioned migrations in one loader must use the same scheme — mixing integers and semver strings throws at construction. `shouldRun` then defaults to "config version < migration version", and the loader stamps the config file with the highest applied version. `shouldRun`, `run`, and the message factory receive a `MigrationContext` (`filePath`, `fromVersion`, `toVersion`, `appliedMigrations`).
+
+Semver is for new extensions or a fresh baseline: a config already stamped with integer `3` reads as `3.0.0` under a semver loader, which is above `"1.2.0"`, so existing integer-stamped extensions should keep integers (or gate the first semver migration with an explicit `shouldRun`).
 
 ```typescript
 const migrations: Migration<MyConfig>[] = [

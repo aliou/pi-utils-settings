@@ -16,7 +16,8 @@ Options:
   -t, --type <name>        Root type/interface name
   -o, --out <file>         Output schema file
       --tsconfig <path>    tsconfig path
-      --version <int>      Current migration version (documented in schema)
+      --version <version>  Current migration version: non-negative integer or
+                           semver string (documented in schema)
       --check              Verify the committed schema is current (exit 1 on drift)
       --no-skip-type-check Run the generator's type check (skipped by default)
   -h, --help               Show this help
@@ -51,11 +52,15 @@ function parseArgs(argv) {
         break;
       case "--version": {
         const raw = next();
-        const version = Number(raw);
-        if (!Number.isInteger(version) || version < 0) {
-          throw new Error(`--version must be a non-negative integer, got "${raw}"`);
+        if (/^\d{1,15}(\.\d{1,15})?(\.\d{1,15})?$/.test(raw)) {
+          // Dotted forms are semver strings; a bare integer stays a number
+          // to match the stamped value of integer-scheme migrations.
+          options.version = raw.includes(".") ? raw : Number(raw);
+        } else {
+          throw new Error(
+            `--version must be a non-negative integer or a semver string, got "${raw}"`,
+          );
         }
-        options.version = version;
         break;
       }
       case "--check":

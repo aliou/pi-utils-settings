@@ -49,7 +49,7 @@ const config = configLoader.getConfig(); // ResolvedConfig (defaults merged with
 
 #### Versioned migrations
 
-Migrations can declare a monotonic integer `version`. When set, `shouldRun` defaults to "config version < migration version" and the loader stamps the config file with the highest applied version. `shouldRun`, `run`, and the message factory receive a `MigrationContext` with the file path, the versions before/after, and the names of migrations already applied during the load.
+Migrations can declare a monotonic `version`: a non-negative integer or a semver string (e.g. the extension's package version, `"1.2.0"`; no prerelease tags). When set, `shouldRun` defaults to "config version < migration version" and the loader stamps the config file with the highest applied version. All versioned migrations in one loader must use the same scheme — mixing integers and semver strings throws at construction. Extensions already stamping integers should keep integers (a stamped `3` reads as `3.0.0` under semver). `shouldRun`, `run`, and the message factory receive a `MigrationContext` with the file path, the versions before/after, and the names of migrations already applied during the load.
 
 ```typescript
 const migrations: Migration<MyConfig>[] = [

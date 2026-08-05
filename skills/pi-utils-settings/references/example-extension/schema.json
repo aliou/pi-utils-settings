@@ -1,87 +1,103 @@
 {
-  "$ref": "#/definitions/ExampleConfig",
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ExampleConfig",
   "definitions": {
     "ExampleConfig": {
-      "additionalProperties": false,
-      "description": "User-facing configuration for the example extension.",
+      "type": "object",
       "properties": {
         "appearance": {
-          "additionalProperties": false,
-          "description": "Visual appearance settings.",
+          "type": "object",
           "properties": {
+            "theme": {
+              "type": "string",
+              "description": "Color theme name (e.g. \"dark\", \"light\", \"solarized\")."
+            },
             "fontSize": {
-              "description": "Editor font size in pixels.",
-              "type": "number"
+              "type": "number",
+              "description": "Editor font size in pixels."
             },
             "showLineNumbers": {
-              "description": "Show line numbers in the gutter.",
-              "type": "boolean"
-            },
-            "theme": {
-              "description": "Color theme name (e.g. \"dark\", \"light\", \"solarized\").",
-              "type": "string"
+              "type": "boolean",
+              "description": "Show line numbers in the gutter."
             }
           },
-          "type": "object"
+          "additionalProperties": false,
+          "description": "Visual appearance settings."
         },
         "editor": {
-          "additionalProperties": false,
-          "description": "Editor behavior settings.",
+          "type": "object",
           "properties": {
             "autoSave": {
-              "description": "Automatically save files after changes.",
-              "type": "boolean"
+              "type": "boolean",
+              "description": "Automatically save files after changes."
             },
             "formatOnSave": {
-              "description": "Run formatter on save.",
-              "type": "boolean"
+              "type": "boolean",
+              "description": "Run formatter on save."
             },
             "tabSize": {
-              "description": "Number of spaces per tab.",
-              "type": "number"
+              "type": "number",
+              "description": "Number of spaces per tab."
             }
           },
-          "type": "object"
+          "additionalProperties": false,
+          "description": "Editor behavior settings."
         },
         "favorites": {
-          "description": "List of favorite file paths.",
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "description": "List of favorite file paths."
         },
         "ignorePaths": {
-          "description": "Glob patterns for paths to ignore.",
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "description": "Glob patterns for paths to ignore."
         },
         "profiles": {
-          "description": "Named configuration profiles.",
+          "type": "array",
           "items": {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
-              "enabled": {
-                "description": "Whether this profile is active.",
-                "type": "boolean"
-              },
               "name": {
-                "description": "Profile display name.",
-                "type": "string"
+                "type": "string",
+                "description": "Profile display name."
               },
               "theme": {
-                "description": "Theme override for this profile.",
-                "type": "string"
+                "type": "string",
+                "description": "Theme override for this profile."
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether this profile is active."
               }
             },
-            "type": "object"
+            "additionalProperties": false
           },
-          "type": "array"
+          "description": "Named configuration profiles."
+        },
+        "$schema": {
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\d{1,15}(\\.\\d{1,15})?(\\.\\d{1,15})?$"
+            }
+          ],
+          "description": "Config schema version, stamped by migrations."
         }
       },
-      "type": "object"
+      "additionalProperties": false,
+      "description": "User-facing configuration for the example extension."
     }
   }
 }

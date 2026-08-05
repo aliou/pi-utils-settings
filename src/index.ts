@@ -62,6 +62,7 @@ export {
   type MigrationContext,
   type MigrationMessageFactory,
   type Scope,
+  type VersionedConfig,
 } from "./config-loader";
 export { getNestedValue, setNestedValue } from "./helpers";
 export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./schema";

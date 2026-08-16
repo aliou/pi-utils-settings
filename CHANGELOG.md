@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.19.2
+
+### Patch Changes
+
+- 5778092: chore(deps): bump @aliou/pi-utils-ui to ^0.5.0
+
 ## 0.19.1
 
 ### Patch Changes

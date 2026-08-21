@@ -368,6 +368,9 @@ export function registerSettingsCommand<
               hideHint: true,
               requestRender: () => tui.requestRender(),
               requestSave,
+              // Tallest body: search input + blank (2) + maxVisible item
+              // lines (15) + scroll indicator (1) + description block (2).
+              minContentHeight: 20,
             },
           );
         }

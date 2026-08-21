@@ -56,6 +56,12 @@ export interface SectionedSettingsOptions {
    * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
    */
   requestSave?: () => void;
+  /**
+   * Minimum number of lines for the rendered content.
+   * If the list renders fewer lines, it pads with blanks.
+   * This keeps the settings height stable across tabs.
+   */
+  minContentHeight?: number;
 }
 
 interface FlatEntry {
@@ -79,6 +85,7 @@ export class SectionedSettings implements Component {
   private hideHint: boolean;
   private requestRender: () => void;
   private requestSave: () => void;
+  private minContentHeight: number;
   private submenuComponent: Component | null = null;
   private submenuItemIndex: number | null = null;
 
@@ -100,6 +107,7 @@ export class SectionedSettings implements Component {
     this.hideHint = options.hideHint ?? false;
     this.requestRender = options.requestRender ?? (() => {});
     this.requestSave = options.requestSave ?? (() => {});
+    this.minContentHeight = options.minContentHeight ?? 0;
     this.selectedIndex = 0;
 
     if (this.searchEnabled) {
@@ -177,10 +185,13 @@ export class SectionedSettings implements Component {
   }
 
   render(width: number): string[] {
-    if (this.submenuComponent) {
-      return this.submenuComponent.render(width);
+    const lines = this.submenuComponent
+      ? this.submenuComponent.render(width)
+      : this.renderMainList(width);
+    for (let i = lines.length; i < this.minContentHeight; i++) {
+      lines.push("");
     }
-    return this.renderMainList(width);
+    return lines;
   }
 
   private renderMainList(width: number): string[] {

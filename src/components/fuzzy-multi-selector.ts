@@ -20,7 +20,6 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import { renderSettingsPanel } from "./render-settings-panel";
 
 export interface FuzzyMultiSelectorSubOption {
   label: string;
@@ -48,6 +47,15 @@ export interface FuzzyMultiSelectorOptions {
   /** Called after any toggle. */
   onToggle?: (item: FuzzyMultiSelectorItem) => void;
   showHints?: boolean;
+  /**
+   * Hide the built-in hint/footer line (when the host panel renders its
+   * own controls line). Hosts can read the shortcuts to display via
+   * `getShortcuts()`; registerSettingsCommand wires this automatically
+   * through the submenu factory context (`ctx.hideHint`).
+   * Takes precedence over `showHints`: when `hideHint` is true the footer
+   * is suppressed even if `showHints` is true (the default).
+   */
+  hideHint?: boolean;
   /** Show the "N selected" count line. Default true. */
   showCount?: boolean;
   /**
@@ -75,6 +83,7 @@ export class FuzzyMultiSelector implements Component {
   private maxVisible: number;
   private input: Input;
   private showHints: boolean;
+  private hideHint: boolean;
   private showCount: boolean;
   private requestSave: () => void;
 
@@ -87,6 +96,7 @@ export class FuzzyMultiSelector implements Component {
     this.maxVisible = options.maxVisible ?? 12;
     this.input = new Input();
     this.showHints = options.showHints ?? true;
+    this.hideHint = options.hideHint ?? false;
     this.showCount = options.showCount ?? true;
     this.requestSave = options.requestSave ?? (() => {});
   }
@@ -149,197 +159,202 @@ export class FuzzyMultiSelector implements Component {
 
   invalidate(): void {}
 
+  /**
+   * Shortcuts the selector currently responds to. Hosts
+   * (SectionedSettings, registerSettingsCommand) use this to render a
+   * single unified controls line while the selector is open.
+   */
+  getShortcuts(): string {
+    return "Space toggle · ^A all · ^X clear · Enter confirm";
+  }
+
   render(width: number): string[] {
-    return renderSettingsPanel(width, this.label, this.theme, (width) => {
-      const lines: string[] = [];
-      const navigableList = this.buildNavigableList();
+    const lines: string[] = [];
+    lines.push(this.theme.label(` ${this.label}`, true));
+    lines.push("");
+    const navigableList = this.buildNavigableList();
 
-      // Search input
-      lines.push(this.theme.hint("Search:"));
-      lines.push(this.input.render(width).join(""));
+    // Search input
+    lines.push(this.theme.hint("Search:"));
+    lines.push(this.input.render(width).join(""));
+    lines.push("");
+
+    // Count
+    if (this.showCount) {
+      const checkedCount = this.allItems.filter((i) => i.checked).length;
+      const lockedCount = this.allItems.filter(
+        (i) => i.checked && i.locked,
+      ).length;
+      let countText = `${checkedCount} selected`;
+      if (lockedCount > 0) countText += ` (${lockedCount} locked)`;
+      lines.push(this.theme.hint(`  ${countText}`));
       lines.push("");
+    }
 
-      // Count
-      if (this.showCount) {
-        const checkedCount = this.allItems.filter((i) => i.checked).length;
-        const lockedCount = this.allItems.filter(
-          (i) => i.checked && i.locked,
-        ).length;
-        let countText = `${checkedCount} selected`;
-        if (lockedCount > 0) countText += ` (${lockedCount} locked)`;
-        lines.push(this.theme.hint(`  ${countText}`));
-        lines.push("");
+    if (navigableList.length === 0) {
+      lines.push(this.theme.hint("  (no matches)"));
+    } else {
+      // Split into selected section (checked items + subOptions) and unchecked section
+      const selectedEntries: { entry: NavigableEntry; navIndex: number }[] = [];
+      const uncheckedEntries: { entry: NavigableEntry; navIndex: number }[] =
+        [];
+
+      for (let i = 0; i < navigableList.length; i++) {
+        const entry = navigableList[i];
+        if (!entry) continue;
+        if (entry.type === "item" && entry.item.checked) {
+          selectedEntries.push({ entry, navIndex: i });
+        } else if (entry.type === "subOption") {
+          selectedEntries.push({ entry, navIndex: i });
+        } else {
+          uncheckedEntries.push({ entry, navIndex: i });
+        }
       }
 
-      if (navigableList.length === 0) {
-        lines.push(this.theme.hint("  (no matches)"));
-      } else {
-        // Split into selected section (checked items + subOptions) and unchecked section
-        const selectedEntries: { entry: NavigableEntry; navIndex: number }[] =
-          [];
-        const uncheckedEntries: { entry: NavigableEntry; navIndex: number }[] =
-          [];
-
-        for (let i = 0; i < navigableList.length; i++) {
-          const entry = navigableList[i];
-          if (!entry) continue;
-          if (entry.type === "item" && entry.item.checked) {
-            selectedEntries.push({ entry, navIndex: i });
-          } else if (entry.type === "subOption") {
-            selectedEntries.push({ entry, navIndex: i });
-          } else {
-            uncheckedEntries.push({ entry, navIndex: i });
-          }
-        }
-
-        // Render Selected section
-        if (selectedEntries.length > 0) {
-          lines.push(this.theme.hint("  Selected:"));
-          for (const { entry, navIndex } of selectedEntries) {
-            const isSelected = navIndex === this.selectedIndex;
-            const prefix = isSelected ? this.theme.cursor : "  ";
-            const prefixWidth = visibleWidth(prefix);
-
-            if (entry.type === "item") {
-              const item = entry.item;
-              const checkbox = item.checked ? "[x]" : "[ ]";
-              const rec = item.recommended ? " *" : "";
-              const lockText =
-                item.locked && item.lockedBy ? ` (via ${item.lockedBy})` : "";
-              const suffixText = item.suffix
-                ? ` ${this.theme.hint(item.suffix)}`
-                : "";
-
-              const maxItemWidth = width - prefixWidth - 2;
-              const itemText = `${checkbox} ${item.label}${rec}${lockText}`;
-              const text = item.locked
-                ? this.theme.hint(truncateToWidth(itemText, maxItemWidth, ""))
-                : this.theme.value(
-                    truncateToWidth(itemText, maxItemWidth, ""),
-                    isSelected,
-                  );
-              lines.push(prefix + text + suffixText);
-            } else {
-              // subOption
-              const subOption = entry.subOption;
-              const checkbox = subOption.checked ? "[x]" : "[ ]";
-              const itemText = `    ${checkbox} ${subOption.label}`;
-              const maxItemWidth = width - prefixWidth - 2;
-              const text = this.theme.value(
-                truncateToWidth(itemText, maxItemWidth, ""),
-                isSelected,
-              );
-              lines.push(prefix + text);
-            }
-          }
-        }
-
-        // Separator between sections
-        if (selectedEntries.length > 0 && uncheckedEntries.length > 0) {
-          lines.push("");
-        }
-
-        // Compute scroll window for unchecked section
-        let startIndex = 0;
-        let endIndex = uncheckedEntries.length;
-
-        if (uncheckedEntries.length > this.maxVisible) {
-          // Find cursor position within unchecked section
-          let cursorInUnchecked = -1;
-          for (let i = 0; i < uncheckedEntries.length; i++) {
-            const e = uncheckedEntries[i];
-            if (e && e.navIndex === this.selectedIndex) {
-              cursorInUnchecked = i;
-              break;
-            }
-          }
-
-          if (cursorInUnchecked >= 0) {
-            // Cursor is in unchecked section, center it
-            startIndex = Math.max(
-              0,
-              Math.min(
-                cursorInUnchecked - Math.floor(this.maxVisible / 2),
-                uncheckedEntries.length - this.maxVisible,
-              ),
-            );
-            endIndex = startIndex + this.maxVisible;
-          } else {
-            // Cursor is in selected section, show from top
-            endIndex = this.maxVisible;
-          }
-        }
-
-        // Render unchecked section (with scrolling)
-        for (
-          let i = startIndex;
-          i < endIndex && i < uncheckedEntries.length;
-          i++
-        ) {
-          const e = uncheckedEntries[i];
-          if (!e) continue;
-          const { entry, navIndex } = e;
+      // Render Selected section
+      if (selectedEntries.length > 0) {
+        lines.push(this.theme.hint("  Selected:"));
+        for (const { entry, navIndex } of selectedEntries) {
           const isSelected = navIndex === this.selectedIndex;
           const prefix = isSelected ? this.theme.cursor : "  ";
           const prefixWidth = visibleWidth(prefix);
 
-          // uncheckedEntries only contains type 'item' entries
-          const item = (entry as { type: "item"; item: FuzzyMultiSelectorItem })
-            .item;
-          const checkbox = item.checked ? "[x]" : "[ ]";
-          const rec = item.recommended ? " *" : "";
-          const lockText =
-            item.locked && item.lockedBy ? ` (via ${item.lockedBy})` : "";
-          const suffixText = item.suffix
-            ? ` ${this.theme.hint(item.suffix)}`
-            : "";
+          if (entry.type === "item") {
+            const item = entry.item;
+            const checkbox = item.checked ? "[x]" : "[ ]";
+            const rec = item.recommended ? " *" : "";
+            const lockText =
+              item.locked && item.lockedBy ? ` (via ${item.lockedBy})` : "";
+            const suffixText = item.suffix
+              ? ` ${this.theme.hint(item.suffix)}`
+              : "";
 
-          const maxItemWidth = width - prefixWidth - 2;
-          const itemText = `${checkbox} ${item.label}${rec}${lockText}`;
-          const text = item.locked
-            ? this.theme.hint(truncateToWidth(itemText, maxItemWidth, ""))
-            : this.theme.value(
-                truncateToWidth(itemText, maxItemWidth, ""),
-                isSelected,
-              );
-          lines.push(prefix + text + suffixText);
-        }
-
-        // Scroll indicator for unchecked section
-        if (uncheckedEntries.length > this.maxVisible) {
-          // Find cursor position within unchecked section for the indicator
-          let cursorInUnchecked = -1;
-          for (let i = 0; i < uncheckedEntries.length; i++) {
-            const e = uncheckedEntries[i];
-            if (e && e.navIndex === this.selectedIndex) {
-              cursorInUnchecked = i;
-              break;
-            }
+            const maxItemWidth = width - prefixWidth - 2;
+            const itemText = `${checkbox} ${item.label}${rec}${lockText}`;
+            const text = item.locked
+              ? this.theme.hint(truncateToWidth(itemText, maxItemWidth, ""))
+              : this.theme.value(
+                  truncateToWidth(itemText, maxItemWidth, ""),
+                  isSelected,
+                );
+            lines.push(prefix + text + suffixText);
+          } else {
+            // subOption
+            const subOption = entry.subOption;
+            const checkbox = subOption.checked ? "[x]" : "[ ]";
+            const itemText = `    ${checkbox} ${subOption.label}`;
+            const maxItemWidth = width - prefixWidth - 2;
+            const text = this.theme.value(
+              truncateToWidth(itemText, maxItemWidth, ""),
+              isSelected,
+            );
+            lines.push(prefix + text);
           }
-          const displayIndex =
-            cursorInUnchecked >= 0 ? cursorInUnchecked + 1 : 1;
-          lines.push(
-            this.theme.hint(`  (${displayIndex}/${uncheckedEntries.length})`),
-          );
-        }
-
-        // Description of current entry
-        const currentEntry = navigableList[this.selectedIndex];
-        if (currentEntry?.type === "item" && currentEntry.item.description) {
-          lines.push("");
-          lines.push(this.theme.hint(`  ${currentEntry.item.description}`));
         }
       }
 
-      if (this.showHints) {
+      // Separator between sections
+      if (selectedEntries.length > 0 && uncheckedEntries.length > 0) {
         lines.push("");
+      }
+
+      // Compute scroll window for unchecked section
+      let startIndex = 0;
+      let endIndex = uncheckedEntries.length;
+
+      if (uncheckedEntries.length > this.maxVisible) {
+        // Find cursor position within unchecked section
+        let cursorInUnchecked = -1;
+        for (let i = 0; i < uncheckedEntries.length; i++) {
+          const e = uncheckedEntries[i];
+          if (e && e.navIndex === this.selectedIndex) {
+            cursorInUnchecked = i;
+            break;
+          }
+        }
+
+        if (cursorInUnchecked >= 0) {
+          // Cursor is in unchecked section, center it
+          startIndex = Math.max(
+            0,
+            Math.min(
+              cursorInUnchecked - Math.floor(this.maxVisible / 2),
+              uncheckedEntries.length - this.maxVisible,
+            ),
+          );
+          endIndex = startIndex + this.maxVisible;
+        } else {
+          // Cursor is in selected section, show from top
+          endIndex = this.maxVisible;
+        }
+      }
+
+      // Render unchecked section (with scrolling)
+      for (
+        let i = startIndex;
+        i < endIndex && i < uncheckedEntries.length;
+        i++
+      ) {
+        const e = uncheckedEntries[i];
+        if (!e) continue;
+        const { entry, navIndex } = e;
+        const isSelected = navIndex === this.selectedIndex;
+        const prefix = isSelected ? this.theme.cursor : "  ";
+        const prefixWidth = visibleWidth(prefix);
+
+        // uncheckedEntries only contains type 'item' entries
+        const item = (entry as { type: "item"; item: FuzzyMultiSelectorItem })
+          .item;
+        const checkbox = item.checked ? "[x]" : "[ ]";
+        const rec = item.recommended ? " *" : "";
+        const lockText =
+          item.locked && item.lockedBy ? ` (via ${item.lockedBy})` : "";
+        const suffixText = item.suffix
+          ? ` ${this.theme.hint(item.suffix)}`
+          : "";
+
+        const maxItemWidth = width - prefixWidth - 2;
+        const itemText = `${checkbox} ${item.label}${rec}${lockText}`;
+        const text = item.locked
+          ? this.theme.hint(truncateToWidth(itemText, maxItemWidth, ""))
+          : this.theme.value(
+              truncateToWidth(itemText, maxItemWidth, ""),
+              isSelected,
+            );
+        lines.push(prefix + text + suffixText);
+      }
+
+      // Scroll indicator for unchecked section
+      if (uncheckedEntries.length > this.maxVisible) {
+        // Find cursor position within unchecked section for the indicator
+        let cursorInUnchecked = -1;
+        for (let i = 0; i < uncheckedEntries.length; i++) {
+          const e = uncheckedEntries[i];
+          if (e && e.navIndex === this.selectedIndex) {
+            cursorInUnchecked = i;
+            break;
+          }
+        }
+        const displayIndex = cursorInUnchecked >= 0 ? cursorInUnchecked + 1 : 1;
         lines.push(
-          this.theme.hint("  Space toggle · ^A all · ^X clear · Enter confirm"),
+          this.theme.hint(`  (${displayIndex}/${uncheckedEntries.length})`),
         );
       }
 
-      return lines;
-    });
+      // Description of current entry
+      const currentEntry = navigableList[this.selectedIndex];
+      if (currentEntry?.type === "item" && currentEntry.item.description) {
+        lines.push("");
+        lines.push(this.theme.hint(`  ${currentEntry.item.description}`));
+      }
+    }
+
+    if (this.showHints && !this.hideHint) {
+      lines.push("");
+      lines.push(this.theme.hint(`  ${this.getShortcuts()}`));
+    }
+
+    return lines;
   }
 
   handleInput(data: string): void {

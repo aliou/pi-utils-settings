@@ -100,7 +100,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
               label: "Theme",
               currentValue: theme,
               description: "Color theme. Opens a searchable list.",
-              submenu: (_current, done) => {
+              submenu: (_current, done, submenuCtx) => {
                 return new FuzzySelector({
                   label: "Select Theme",
                   items: AVAILABLE_THEMES,
@@ -108,6 +108,10 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   theme: ctx.theme,
                   // searchThreshold: 7 by default, switch to fuzzy search above this item count
                   // maxVisible: 10 by default, items shown before scrolling
+                  // hideHint so the selector's own footer is hidden and the
+                  // panel shows the selector's shortcuts as its single
+                  // controls line.
+                  hideHint: submenuCtx.hideHint,
                   onSelect: (selected) => {
                     const current = tabConfig ?? ({} as ExampleConfig);
                     const updated: ExampleConfig = {
@@ -147,11 +151,11 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
               label: "Remote theme",
               currentValue: theme,
               description: "Fetches additional themes from a remote source.",
-              submenu: (_current, done, { requestRender }) => {
+              submenu: (_current, done, { requestRender, hideHint }) => {
                 const current = tabConfig ?? ({} as ExampleConfig);
 
                 class AsyncThemePicker implements Component {
-                  private editor: Component | null = null;
+                  private editor: FuzzySelector | null = null;
 
                   constructor() {
                     void loadRemoteThemes().then((themes) => {
@@ -160,6 +164,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                         items: themes,
                         currentValue: theme,
                         theme: ctx.theme,
+                        hideHint,
                         onSelect: (selected) => {
                           const updated: ExampleConfig = {
                             ...current,
@@ -183,6 +188,12 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                         ctx.theme.hint("  (loading remote themes...)"),
                       ]
                     );
+                  }
+
+                  // Forward shortcuts so the panel's controls line stays
+                  // accurate once the editor is ready.
+                  getShortcuts(): string | undefined {
+                    return this.editor?.getShortcuts();
                   }
 
                   handleInput(data: string): void {
@@ -323,11 +334,12 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                         nextFavorites.length === 0
                           ? "none"
                           : `${nextFavorites.length} item${nextFavorites.length === 1 ? "" : "s"}`,
-                      submenu: (doneNested) =>
+                      submenu: (doneNested, nestedCtx) =>
                         new ArrayEditor({
                           label: "Favorites",
                           items: [...nextFavorites],
                           theme: ctx.theme,
+                          hideHint: nestedCtx.hideHint,
                           onSave: (items) => {
                             nextFavorites = items;
                             syncDraft();
@@ -377,7 +389,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   : `${favorites.length} item${favorites.length === 1 ? "" : "s"}`,
               description:
                 "A list of favorite items. Opens an array editor (add/edit/delete).",
-              submenu: (_current, done) => {
+              submenu: (_current, done, submenuCtx) => {
                 const current = tabConfig ?? ({} as ExampleConfig);
                 const currentArray = current.favorites ?? resolved.favorites;
 
@@ -385,6 +397,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   label: "Favorites",
                   items: [...currentArray],
                   theme: ctx.theme,
+                  hideHint: submenuCtx.hideHint,
                   onSave: (items) => {
                     const updated: ExampleConfig = {
                       ...current,
@@ -411,7 +424,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   : `${ignorePaths.length} path${ignorePaths.length === 1 ? "" : "s"}`,
               description:
                 "Paths to ignore. Opens a path editor with Tab completion and validation.",
-              submenu: (_current, done) => {
+              submenu: (_current, done, submenuCtx) => {
                 const current = tabConfig ?? ({} as ExampleConfig);
                 const currentArray =
                   current.ignorePaths ?? resolved.ignorePaths;
@@ -420,6 +433,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   label: "Ignored Paths",
                   items: [...currentArray],
                   theme: ctx.theme,
+                  hideHint: submenuCtx.hideHint,
                   // baseDir: process.cwd() by default, resolved relative to this
                   baseDir: process.cwd(),
                   validatePath: (value) => {
@@ -568,7 +582,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
               currentValue: `${profiles.filter((p) => p.enabled).length}/${profiles.length} on`,
               description:
                 "FuzzyMultiSelector demo. Enable/disable profiles with locked and recommended items.",
-              submenu: (_current, done) => {
+              submenu: (_current, done, submenuCtx) => {
                 const current = tabConfig ?? ({} as ExampleConfig);
                 const items: FuzzyMultiSelectorItem[] = profiles.map(
                   (profile) => ({
@@ -592,6 +606,10 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   label: "Toggle Profiles",
                   theme: ctx.theme,
                   items,
+                  // hideHint wins over the default showHints: true, so the
+                  // panel's single controls line shows the selector's
+                  // shortcuts instead of its own footer.
+                  hideHint: submenuCtx.hideHint,
                   onToggle: (_item) => {
                     // Keep draft in sync on every toggle
                     const updated: ExampleConfig = {
@@ -606,9 +624,11 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                 });
 
                 // FuzzyMultiSelector has no onDone callback.
-                // Wrap it to close the submenu on Esc.
+                // Wrap it to close the submenu on Esc, and forward
+                // getShortcuts so the panel's controls line stays accurate.
                 return {
                   render: (width: number) => selector.render(width),
+                  getShortcuts: () => selector.getShortcuts(),
                   handleInput: (data: string) => {
                     if (matchesKey(data, Key.escape)) {
                       done(undefined);

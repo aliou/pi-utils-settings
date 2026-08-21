@@ -7,7 +7,6 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import { renderSettingsPanel } from "./render-settings-panel";
 
 /**
  * A submenu component for selecting one item from a large list using fuzzy search.
@@ -35,6 +34,13 @@ export interface FuzzySelectorOptions {
    * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
    */
   requestSave?: () => void;
+  /**
+   * Hide the built-in hint/footer line (when the host panel renders its
+   * own controls line). Hosts can read the shortcuts to display via
+   * `getShortcuts()`; registerSettingsCommand wires this automatically
+   * through the submenu factory context (`ctx.hideHint`).
+   */
+  hideHint?: boolean;
 }
 
 export class FuzzySelector implements Component {
@@ -50,6 +56,7 @@ export class FuzzySelector implements Component {
   private query = "";
   private useSearch: boolean;
   private requestSave: () => void;
+  private hideHint: boolean;
 
   constructor(options: FuzzySelectorOptions) {
     this.allItems = [...options.items];
@@ -60,6 +67,7 @@ export class FuzzySelector implements Component {
     this.onDone = options.onDone;
     this.maxVisible = options.maxVisible ?? 10;
     this.requestSave = options.requestSave ?? (() => {});
+    this.hideHint = options.hideHint ?? false;
     const threshold = options.searchThreshold ?? 7;
     this.useSearch = this.allItems.length > threshold;
     this.input = new Input();
@@ -105,65 +113,80 @@ export class FuzzySelector implements Component {
 
   invalidate() {}
 
+  /**
+   * Shortcuts the selector currently responds to, matching the active
+   * mode. Hosts (SectionedSettings, registerSettingsCommand) use this to
+   * render a single unified controls line while the selector is open.
+   */
+  getShortcuts(): string {
+    if (
+      this.useSearch &&
+      this.query.trim() !== "" &&
+      this.filteredItems.length === 0
+    ) {
+      return "Type to search · Esc: back";
+    }
+    return this.useSearch
+      ? "Type to search · Enter: select · Esc: back"
+      : "↑/↓: move · Enter: select · Esc: back";
+  }
+
   render(width: number): string[] {
-    return renderSettingsPanel(width, this.label, this.theme, (innerWidth) => {
-      const lines: string[] = [];
+    const lines: string[] = [];
 
-      if (this.useSearch) {
-        lines.push(this.theme.hint("Search:"));
-        lines.push(this.input.render(innerWidth).join(""));
-        lines.push("");
-      }
+    lines.push(this.theme.label(` ${this.label}`, true));
+    lines.push("");
 
-      if (this.filteredItems.length === 0) {
-        lines.push(this.theme.hint("(no matches)"));
-      } else {
-        const startIndex = Math.max(
-          0,
-          Math.min(
-            this.selectedIndex - Math.floor(this.maxVisible / 2),
-            this.filteredItems.length - this.maxVisible,
-          ),
-        );
-        const endIndex = Math.min(
-          startIndex + this.maxVisible,
-          this.filteredItems.length,
-        );
-
-        for (let i = startIndex; i < endIndex; i++) {
-          const item = this.filteredItems[i];
-          if (!item) continue;
-          const isSelected = i === this.selectedIndex;
-          const prefix = isSelected ? this.theme.cursor : "  ";
-          const prefixWidth = visibleWidth(prefix);
-          const maxItemWidth = innerWidth - prefixWidth;
-          const text = this.theme.value(
-            truncateToWidth(item, maxItemWidth, ""),
-            isSelected,
-          );
-          lines.push(prefix + text);
-        }
-
-        if (startIndex > 0 || endIndex < this.filteredItems.length) {
-          lines.push(
-            this.theme.hint(
-              `(${this.selectedIndex + 1}/${this.filteredItems.length})`,
-            ),
-          );
-        }
-      }
-
+    if (this.useSearch) {
+      lines.push(this.theme.hint("Search:"));
+      lines.push(this.input.render(width).join(""));
       lines.push("");
-      lines.push(
-        this.theme.hint(
-          this.useSearch
-            ? "Type to search · Enter: select · Esc: back"
-            : "↑/↓: move · Enter: select · Esc: back",
+    }
+
+    if (this.filteredItems.length === 0) {
+      lines.push(this.theme.hint("(no matches)"));
+    } else {
+      const startIndex = Math.max(
+        0,
+        Math.min(
+          this.selectedIndex - Math.floor(this.maxVisible / 2),
+          this.filteredItems.length - this.maxVisible,
         ),
       );
+      const endIndex = Math.min(
+        startIndex + this.maxVisible,
+        this.filteredItems.length,
+      );
 
-      return lines;
-    });
+      for (let i = startIndex; i < endIndex; i++) {
+        const item = this.filteredItems[i];
+        if (!item) continue;
+        const isSelected = i === this.selectedIndex;
+        const prefix = isSelected ? this.theme.cursor : "  ";
+        const prefixWidth = visibleWidth(prefix);
+        const maxItemWidth = width - prefixWidth;
+        const text = this.theme.value(
+          truncateToWidth(item, maxItemWidth, ""),
+          isSelected,
+        );
+        lines.push(prefix + text);
+      }
+
+      if (startIndex > 0 || endIndex < this.filteredItems.length) {
+        lines.push(
+          this.theme.hint(
+            `(${this.selectedIndex + 1}/${this.filteredItems.length})`,
+          ),
+        );
+      }
+    }
+
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(this.theme.hint(this.getShortcuts()));
+    }
+
+    return lines;
   }
 
   handleInput(data: string) {

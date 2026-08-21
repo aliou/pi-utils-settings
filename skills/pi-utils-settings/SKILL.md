@@ -232,11 +232,15 @@ const tags = current.tags ?? resolved.tags;
   id: "tags",
   label: "Tags",
   currentValue: `${tags.length} items`,
-  submenu: (_val, done, _ctx) =>
+  submenu: (_val, done, submenuCtx) =>
     new ArrayEditor({
       label: "Tags",
       items: [...tags],
       theme: ctx.theme,
+      // Forward the host's flag: the panel renders the single controls
+      // line, so the editor hides its own footer and exposes shortcuts
+      // through getShortcuts().
+      hideHint: submenuCtx.hideHint,
       onSave: (items) => {
         ctx.setDraft({ ...current, tags: items });
         done(`${items.length} items`);
@@ -247,6 +251,8 @@ const tags = current.tags ?? resolved.tags;
 ```
 
 `PathArrayEditor` is identical but adds Tab completion for filesystem paths. Accepts optional `validatePath` hook.
+
+These submenu components (`ArrayEditor`, `PathArrayEditor`, `FuzzySelector`, `FuzzyMultiSelector`, `SettingsDetailEditor`) render unframed — a plain title line followed by the body, no border — so they sit cleanly inside the host panel's own border. Each implements `getShortcuts()` per internal mode (list vs add/edit input, search vs no-matches) and accepts a `hideHint` option that suppresses its own shortcut footer. `FuzzyMultiSelector` keeps its existing `showHints` option (default true); `hideHint` wins over it when both are set.
 
 For submenus that need to fetch remote data before showing the real editor, return a small wrapper that loads in the background and calls `requestRender()` when ready:
 
@@ -270,9 +276,9 @@ async function loadRemoteThemes(): Promise<string[]> {
   id: "appearance.remoteTheme",
   label: "Remote theme",
   currentValue: theme,
-  submenu: (_val, done, { requestRender }) => {
+  submenu: (_val, done, { requestRender, hideHint }) => {
     class AsyncThemePicker implements Component {
-      private editor: Component | null = null;
+      private editor: FuzzySelector | null = null;
 
       constructor() {
         void loadRemoteThemes().then((themes) => {
@@ -281,6 +287,7 @@ async function loadRemoteThemes(): Promise<string[]> {
             items: themes,
             currentValue: theme,
             theme: ctx.theme,
+            hideHint,
             onSelect: (selected) => {
               const updated: MyConfig = {
                 ...current,
@@ -297,6 +304,12 @@ async function loadRemoteThemes(): Promise<string[]> {
 
       render(width: number): string[] {
         return this.editor?.render(width) ?? [ctx.theme.hint("  (loading remote themes...)")];
+      }
+
+      // Forward shortcuts so the panel's controls line stays
+      // accurate once the editor is ready.
+      getShortcuts(): string | undefined {
+        return this.editor?.getShortcuts();
       }
 
       handleInput(data: string): void {

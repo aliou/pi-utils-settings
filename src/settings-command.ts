@@ -160,6 +160,14 @@ export interface SettingsCommandOptions<
    * that was captured at extension init time.
    */
   onSave?: (ctx: ExtensionCommandContext) => void | Promise<void>;
+  /**
+   * Fixed content height (in lines) for the settings body, passed to
+   * SectionedSettings. The item list window shrinks to make room for the
+   * selected item's fully wrapped, bottom-anchored description so the
+   * panel height stays stable across tabs and cursor moves.
+   * Default: 20.
+   */
+  contentHeight?: number;
 }
 
 /** Default change handler: stores raw strings as-is via dotted path. */
@@ -198,6 +206,7 @@ export function registerSettingsCommand<
     onSettingChange,
     onBeforeClose,
     onSave,
+    contentHeight = 20,
   } = options;
   const description =
     options.commandDescription ??
@@ -368,9 +377,9 @@ export function registerSettingsCommand<
               hideHint: true,
               requestRender: () => tui.requestRender(),
               requestSave,
-              // Tallest body: search input + blank (2) + maxVisible item
-              // lines (15) + scroll indicator (1) + description block (2).
-              contentHeight: 20,
+              // Fixed body height; the list window shrinks to make room
+              // for the selected item's fully wrapped description.
+              contentHeight,
             },
           );
         }

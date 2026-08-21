@@ -450,6 +450,8 @@ registerSettingsCommand(pi, {
   onSettingChange,        // convert display strings to typed config values
   onBeforeClose,          // (isDirty) => boolean; return false to prevent closing
   onSave,                 // (ctx) => void; called after Ctrl+S saves; use to reload runtime
+  contentHeight,          // optional: fixed settings-body height in lines (default 20);
+                          // the list window shrinks for the fully wrapped, bottom-anchored description
 });
 ```
 

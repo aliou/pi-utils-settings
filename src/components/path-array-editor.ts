@@ -9,7 +9,6 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import { renderSettingsPanel } from "./render-settings-panel";
 
 export interface PathArrayEditorOptions {
   label: string;
@@ -28,6 +27,13 @@ export interface PathArrayEditorOptions {
    * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
    */
   requestSave?: () => void;
+  /**
+   * Hide the built-in hint/footer line (when the host panel renders its
+   * own controls line). Hosts can read the shortcuts to display via
+   * `getShortcuts()`; registerSettingsCommand wires this automatically
+   * through the submenu factory context (`ctx.hideHint`).
+   */
+  hideHint?: boolean;
 }
 
 /**
@@ -52,6 +58,7 @@ export class PathArrayEditor implements Component {
   private completionIndex = 0;
   private readonly validatePath?: (value: string) => string | null;
   private inputError: string | null = null;
+  private hideHint: boolean;
 
   constructor(options: PathArrayEditorOptions) {
     this.items = [...options.items];
@@ -63,6 +70,7 @@ export class PathArrayEditor implements Component {
     this.maxVisible = options.maxVisible ?? 10;
     this.baseDir = options.baseDir ?? process.cwd();
     this.validatePath = options.validatePath;
+    this.hideHint = options.hideHint ?? false;
     this.input = new Input();
     this.input.onSubmit = (value: string) => {
       if (this.mode === "edit") {
@@ -151,14 +159,30 @@ export class PathArrayEditor implements Component {
 
   invalidate() {}
 
-  render(width: number): string[] {
-    return renderSettingsPanel(width, this.label, this.theme, (innerWidth) => {
-      if (this.mode === "add" || this.mode === "edit") {
-        return this.renderInputMode(innerWidth);
-      }
+  /**
+   * Shortcuts the editor currently responds to, matching the active mode
+   * (list vs add/edit input). Hosts (SectionedSettings,
+   * registerSettingsCommand) use this to render a single unified controls
+   * line while the editor is open.
+   */
+  getShortcuts(): string {
+    if (this.mode === "add" || this.mode === "edit") {
+      return "Tab: complete/apply · ↑/↓: select suggestion · Enter: confirm · Esc: cancel";
+    }
+    return "a: add · e/Enter: edit · d: delete · Esc: back";
+  }
 
-      return this.renderListMode(innerWidth);
-    });
+  render(width: number): string[] {
+    const lines: string[] = [];
+    lines.push(this.theme.label(` ${this.label}`, true));
+    lines.push("");
+
+    if (this.mode === "add" || this.mode === "edit") {
+      lines.push(...this.renderInputMode(width));
+    } else {
+      lines.push(...this.renderListMode(width));
+    }
+    return lines;
   }
 
   private renderListMode(width: number): string[] {
@@ -200,10 +224,12 @@ export class PathArrayEditor implements Component {
       }
     }
 
-    lines.push("");
-    lines.push(
-      this.theme.hint("  a: add · e/Enter: edit · d: delete · Esc: back"),
-    );
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(
+        this.theme.hint("  a: add · e/Enter: edit · d: delete · Esc: back"),
+      );
+    }
 
     return lines;
   }
@@ -246,12 +272,14 @@ export class PathArrayEditor implements Component {
       lines.push(this.theme.value(`  ${this.inputError}`, true));
     }
 
-    lines.push("");
-    lines.push(
-      this.theme.hint(
-        "  Tab: complete/apply · ↑/↓: select suggestion · Enter: confirm · Esc: cancel",
-      ),
-    );
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(
+        this.theme.hint(
+          "  Tab: complete/apply · ↑/↓: select suggestion · Enter: confirm · Esc: cancel",
+        ),
+      );
+    }
     return lines;
   }
 

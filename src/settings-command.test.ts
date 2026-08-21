@@ -10,6 +10,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   }),
 }));
 
+import { ArrayEditor } from "./components/array-editor";
 import { SettingsDetailEditor } from "./components/settings-detail-editor";
 import {
   defaultChangeHandler,
@@ -444,6 +445,58 @@ describe("unified shortcut line", () => {
     const output = component.render(80).join("\n");
     expect(output).toContain("custom submenu");
     expect(output).toContain("Enter/Space change · Ctrl+S save · Esc close");
+  });
+
+  it("hosts an unframed ArrayEditor submenu with a single controls line at fixed height", async () => {
+    const harness = makeSettingsHarness({
+      buildSections: (_tabConfig, _resolved, ctx) => [
+        {
+          label: "Collections",
+          items: [
+            {
+              id: "tags",
+              label: "Tags",
+              currentValue: "1 item",
+              submenu: (_value, done, subCtx) =>
+                new ArrayEditor({
+                  label: "Tags",
+                  items: ["one"],
+                  theme: ctx.theme,
+                  hideHint: subCtx.hideHint,
+                  onSave: () => {},
+                  onDone: () => done(undefined),
+                }),
+            },
+          ],
+        },
+      ],
+    });
+    const component = await harness.open();
+
+    const heightWithoutSubmenu = component.render(80).length;
+
+    component.handleInput?.(ENTER); // open the array editor submenu
+
+    // List mode: the editor's shortcuts appear exactly once — in the
+    // panel controls line, not in an editor footer — and the panel
+    // height stays fixed at contentHeight.
+    let output = component.render(80).join("\n");
+    expect(
+      countOccurrences(
+        output,
+        "a: add · e/Enter: edit · d: delete · Esc: back",
+      ),
+    ).toBe(1);
+    expect(output).not.toContain("Enter/Space change");
+    expect(component.render(80).length).toBe(heightWithoutSubmenu);
+
+    component.handleInput?.("a"); // add mode
+
+    output = component.render(80).join("\n");
+    expect(countOccurrences(output, "Enter: confirm · Esc: cancel")).toBe(1);
+    expect(output).not.toContain("a: add");
+    expect(output).not.toContain("Enter/Space change");
+    expect(component.render(80).length).toBe(heightWithoutSubmenu);
   });
 
   it("keeps the panel height identical with and without an open submenu", async () => {

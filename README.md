@@ -283,12 +283,16 @@ import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
   id: "tags",
   label: "Tags",
   currentValue: `${tags.length} items`,
-  submenu: (_val, done, _ctx) => {
+  submenu: (_val, done, submenuCtx) => {
     let latest = [...tags];
     return new ArrayEditor({
       label: "Tags",
       items: [...tags],
       theme: ctx.theme,
+      // Forward the host's flag: the panel renders the single controls
+      // line, so the editor hides its own footer and exposes shortcuts
+      // through getShortcuts().
+      hideHint: submenuCtx.hideHint,
       onSave: (items) => {
         latest = items;
         const updated = structuredClone(tabConfig ?? {}) as MyConfig;
@@ -322,9 +326,9 @@ async function loadPresets(): Promise<string[]> {
   id: "remote.presets",
   label: "Remote presets",
   currentValue: "loading",
-  submenu: (_val, done, { requestRender }) => {
+  submenu: (_val, done, { requestRender, hideHint }) => {
     class AsyncPresetPicker implements Component {
-      private editor: Component | null = null;
+      private editor: FuzzySelector | null = null;
 
       constructor() {
         void loadPresets().then((presets) => {
@@ -332,6 +336,7 @@ async function loadPresets(): Promise<string[]> {
             label: "Preset",
             items: presets,
             theme: ctx.theme,
+            hideHint,
             onSelect: (selected) => {
               const updated = structuredClone(tabConfig ?? {}) as MyConfig;
               setNestedValue(updated, "appearance.theme", selected);
@@ -346,6 +351,12 @@ async function loadPresets(): Promise<string[]> {
 
       render(width: number): string[] {
         return this.editor?.render(width) ?? [ctx.theme.hint("  (loading presets...)")];
+      }
+
+      // Forward shortcuts so the panel's controls line stays
+      // accurate once the editor is ready.
+      getShortcuts(): string | undefined {
+        return this.editor?.getShortcuts();
       }
 
       handleInput(data: string): void {
@@ -447,9 +458,9 @@ const detail = new SettingsDetailEditor({
 
 The settings panel renders exactly one shortcut line at a time, always below the separator. When a submenu is open and implements `getShortcuts(): string | undefined` (see `SettingsSubmenuComponent`), the panel's controls line shows the submenu's current shortcuts (e.g. `↑/↓ or j/k navigate · Enter edit/open · Esc back`, or `Enter: confirm · Esc: cancel` while a field editor is open) instead of the default `Enter/Space change · Ctrl+S save · Esc close`. Submenus without `getShortcuts()` fall back to the default controls line.
 
-`SettingsDetailEditor` implements `getShortcuts()` per mode and accepts a `hideHint` option that suppresses its own hint footer. `SectionedSettings` forwards its `hideHint` option through the submenu factory context, so editors hosted by `registerSettingsCommand` only need `hideHint: ctx.hideHint` (as above) to keep a single shortcut line. Ctrl+S still saves from any depth even though the submenu's line may not mention it, and Esc semantics stay accurate: with a submenu open, Esc backs out of the submenu rather than closing the panel.
+All built-in submenu components — `SettingsDetailEditor`, `ArrayEditor`, `PathArrayEditor`, `FuzzySelector`, and `FuzzyMultiSelector` — implement `getShortcuts()` per internal mode and render unframed (a plain title line above the body, no border), so they sit cleanly inside the panel's own border. Each accepts a `hideHint` option that suppresses its own hint footer; for `FuzzyMultiSelector`, `hideHint` takes precedence over its existing `showHints` option (default `true`). `SectionedSettings` forwards its `hideHint` option through the submenu factory context, so components hosted by `registerSettingsCommand` only need `hideHint: ctx.hideHint` (as above) to keep a single shortcut line. Ctrl+S still saves from any depth even though the submenu's line may not mention it, and Esc semantics stay accurate: with a submenu open, Esc backs out of the submenu rather than closing the panel.
 
-Standalone `SettingsDetailEditor` users should leave `hideHint` unset so the editor keeps rendering its own hint footer.
+Standalone component users should leave `hideHint` unset so the component keeps rendering its own hint footer.
 
 ### ConfigStore interface
 

@@ -6,7 +6,6 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import { renderSettingsPanel } from "./render-settings-panel";
 
 /**
  * A submenu component for editing string arrays inside a SettingsList.
@@ -30,6 +29,13 @@ export interface ArrayEditorOptions {
    * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
    */
   requestSave?: () => void;
+  /**
+   * Hide the built-in hint/footer line (when the host panel renders its
+   * own controls line). Hosts can read the shortcuts to display via
+   * `getShortcuts()`; registerSettingsCommand wires this automatically
+   * through the submenu factory context (`ctx.hideHint`).
+   */
+  hideHint?: boolean;
 }
 
 export class ArrayEditor implements Component {
@@ -44,6 +50,7 @@ export class ArrayEditor implements Component {
   private mode: "list" | "add" | "edit" = "list";
   private input: Input;
   private editIndex = -1;
+  private hideHint: boolean;
 
   constructor(options: ArrayEditorOptions) {
     this.items = [...options.items];
@@ -53,6 +60,7 @@ export class ArrayEditor implements Component {
     this.onDone = options.onDone;
     this.requestSave = options.requestSave ?? (() => {});
     this.maxVisible = options.maxVisible ?? 10;
+    this.hideHint = options.hideHint ?? false;
     this.input = new Input();
     this.input.onSubmit = (value: string) => {
       if (this.mode === "edit") {
@@ -117,14 +125,30 @@ export class ArrayEditor implements Component {
 
   invalidate() {}
 
-  render(width: number): string[] {
-    return renderSettingsPanel(width, this.label, this.theme, (innerWidth) => {
-      if (this.mode === "add" || this.mode === "edit") {
-        return this.renderInputMode(innerWidth);
-      }
+  /**
+   * Shortcuts the editor currently responds to, matching the active mode
+   * (list vs add/edit input). Hosts (SectionedSettings,
+   * registerSettingsCommand) use this to render a single unified controls
+   * line while the editor is open.
+   */
+  getShortcuts(): string {
+    if (this.mode === "add" || this.mode === "edit") {
+      return "Enter: confirm · Esc: cancel";
+    }
+    return "a: add · e/Enter: edit · d: delete · Esc: back";
+  }
 
-      return this.renderListMode(innerWidth);
-    });
+  render(width: number): string[] {
+    const lines: string[] = [];
+    lines.push(this.theme.label(` ${this.label}`, true));
+    lines.push("");
+
+    if (this.mode === "add" || this.mode === "edit") {
+      lines.push(...this.renderInputMode(width));
+    } else {
+      lines.push(...this.renderListMode(width));
+    }
+    return lines;
   }
 
   private renderListMode(width: number): string[] {
@@ -166,10 +190,12 @@ export class ArrayEditor implements Component {
       }
     }
 
-    lines.push("");
-    lines.push(
-      this.theme.hint("  a: add · e/Enter: edit · d: delete · Esc: back"),
-    );
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(
+        this.theme.hint("  a: add · e/Enter: edit · d: delete · Esc: back"),
+      );
+    }
 
     return lines;
   }
@@ -179,8 +205,10 @@ export class ArrayEditor implements Component {
     const label = this.mode === "edit" ? "  Edit item:" : "  New item:";
     lines.push(this.theme.hint(label));
     lines.push(`  ${this.input.render(width - 4).join("")}`);
-    lines.push("");
-    lines.push(this.theme.hint("  Enter: confirm · Esc: cancel"));
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(this.theme.hint("  Enter: confirm · Esc: cancel"));
+    }
     return lines;
   }
 

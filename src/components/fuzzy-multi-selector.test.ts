@@ -10,6 +10,7 @@ const UP = "\u001b[A";
 const SPACE = " ";
 const CTRL_A = "\x01";
 const CTRL_X = "\x18";
+const BOX_CHARS = /[╭╮╰╯│├┤─]/;
 
 function createTheme(): SettingsListTheme {
   return {
@@ -196,6 +197,57 @@ describe("CheckboxList", () => {
 
     const rendered = selector.render(80).join("\n");
     expect(rendered).toContain("Space toggle");
+  });
+
+  it("hideHint suppresses the footer even when showHints is true", () => {
+    const selector = new CheckboxList({
+      label: "Test",
+      items: makeItems(["Alpha"]),
+      theme: createTheme(),
+      showHints: true,
+      hideHint: true,
+    });
+
+    const rendered = selector.render(80).join("\n");
+    expect(rendered).not.toContain("Space toggle");
+  });
+
+  it("renders unframed with a plain title line", () => {
+    const selector = new CheckboxList({
+      label: "Test",
+      items: makeItems(["Alpha", "Beta"]),
+      theme: createTheme(),
+    });
+
+    const lines = selector.render(80);
+    expect(lines[0]).toBe(" Test");
+    expect(lines[1]).toBe("");
+    expect(lines.join("\n")).not.toMatch(BOX_CHARS);
+  });
+
+  it("renders without box-drawing characters in no-matches mode", () => {
+    const selector = new CheckboxList({
+      label: "Test",
+      items: makeItems(["Alpha", "Beta"]),
+      theme: createTheme(),
+    });
+
+    for (const ch of "zzzz") selector.handleInput(ch);
+    const rendered = selector.render(80).join("\n");
+    expect(rendered).not.toMatch(BOX_CHARS);
+    expect(rendered).toContain("(no matches)");
+  });
+
+  it("reports its shortcuts via getShortcuts", () => {
+    const selector = new CheckboxList({
+      label: "Test",
+      items: makeItems(["Alpha"]),
+      theme: createTheme(),
+    });
+
+    expect(selector.getShortcuts()).toBe(
+      "Space toggle · ^A all · ^X clear · Enter confirm",
+    );
   });
 
   it("getCheckedItems returns only checked top-level items", () => {

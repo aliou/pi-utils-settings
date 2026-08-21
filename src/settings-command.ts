@@ -573,13 +573,24 @@ export function registerSettingsCommand<
                 theme.fg("border", "┤"),
             );
 
-            // Controls
-            const parts = ["Enter/Space change"];
-            if (allTabs.length > 1) {
-              parts.push("Tab/Shift+Tab tab");
+            // Controls: exactly one shortcut line at all times. While a
+            // submenu is open, show the submenu's own shortcuts (accurate
+            // for its context, e.g. "Esc back" instead of "Esc close");
+            // fall back to the default controls when the submenu exposes
+            // none. Ctrl+S still saves from any depth even though the
+            // submenu line may not mention it.
+            const submenuShortcuts = settings?.getActiveSubmenuShortcuts();
+            let controlsText: string;
+            if (submenuShortcuts) {
+              controlsText = theme.fg("dim", ` ${submenuShortcuts}`);
+            } else {
+              const parts = ["Enter/Space change"];
+              if (allTabs.length > 1) {
+                parts.push("Tab/Shift+Tab tab");
+              }
+              parts.push("Ctrl+S save", "Esc close");
+              controlsText = theme.fg("dim", ` ${parts.join(" · ")}`);
             }
-            parts.push("Ctrl+S save", "Esc close");
-            const controlsText = theme.fg("dim", ` ${parts.join(" · ")}`);
             lines.push(padLine(controlsText, contentWidth));
 
             // Bottom border

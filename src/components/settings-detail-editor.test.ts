@@ -237,6 +237,219 @@ describe("SettingsDetailEditor", () => {
     expect(requestRender).toHaveBeenCalledTimes(2);
   });
 
+  describe("getShortcuts", () => {
+    function makeEditor(
+      fields: SettingsDetailField[],
+      options: { hintSuffix?: string; hideHint?: boolean } = {},
+    ): SettingsDetailEditor {
+      return new SettingsDetailEditor({
+        title: "Details",
+        fields,
+        theme: createTheme(),
+        onDone: () => {},
+        ...options,
+      });
+    }
+
+    const textField = (): SettingsDetailField => ({
+      id: "theme",
+      type: "text",
+      label: "Theme",
+      getValue: () => "dark",
+      setValue: () => {},
+    });
+
+    it("returns list-mode shortcuts, including hintSuffix when set", () => {
+      expect(makeEditor([textField()]).getShortcuts()).toBe(
+        "↑/↓ or j/k navigate · Enter edit/open · Esc back",
+      );
+      expect(
+        makeEditor([textField()], { hintSuffix: "Ctrl+S save" }).getShortcuts(),
+      ).toBe("↑/↓ or j/k navigate · Enter edit/open · Esc back · Ctrl+S save");
+    });
+
+    it("returns the editing variant while a text field editor is open", () => {
+      const editor = makeEditor([textField()]);
+
+      editor.handleInput(ENTER);
+
+      expect(editor.getShortcuts()).toBe("Enter: confirm · Esc: cancel");
+
+      // Esc cancels editing back to list mode.
+      editor.handleInput(ESC);
+      expect(editor.getShortcuts()).toBe(
+        "↑/↓ or j/k navigate · Enter edit/open · Esc back",
+      );
+    });
+
+    it("returns choice-picker shortcuts in enum mode", () => {
+      const editor = makeEditor([
+        {
+          id: "tabSize",
+          type: "enum",
+          label: "Tab size",
+          getValue: () => "2",
+          setValue: () => {},
+          options: ["2", "4", "8"],
+        },
+      ]);
+
+      editor.handleInput(ENTER);
+
+      expect(editor.getShortcuts()).toBe(
+        "↑/↓ or j/k navigate · Enter: choose · Esc: cancel",
+      );
+    });
+
+    it("returns Esc: back in enum mode when there are no choices", () => {
+      const editor = makeEditor([
+        {
+          id: "tabSize",
+          type: "enum",
+          label: "Tab size",
+          getValue: () => "2",
+          setValue: () => {},
+          options: [],
+        },
+      ]);
+
+      editor.handleInput(ENTER);
+
+      expect(editor.getShortcuts()).toBe("Esc: back");
+    });
+
+    it("returns confirm shortcuts, honoring a custom confirmHint", () => {
+      const editor = makeEditor([
+        {
+          id: "clear",
+          type: "action",
+          label: "Clear",
+          onConfirm: () => {},
+          confirmHint: "  Enter: wipe it · Esc: keep",
+        },
+      ]);
+
+      editor.handleInput(ENTER);
+
+      expect(editor.getShortcuts()).toBe("Enter: wipe it · Esc: keep");
+    });
+
+    it("returns Esc: back for the empty state", () => {
+      expect(makeEditor([]).getShortcuts()).toBe("Esc: back");
+    });
+
+    it("delegates to a nested submenu that exposes shortcuts", () => {
+      const editor = makeEditor([
+        {
+          id: "nested",
+          type: "submenu",
+          label: "Nested",
+          getValue: () => "open",
+          submenu: () => ({
+            render: () => ["nested"],
+            handleInput: () => {},
+            invalidate: () => {},
+            getShortcuts: () => "Type to filter · Enter select · Esc back",
+          }),
+        },
+      ]);
+
+      editor.handleInput(ENTER);
+
+      expect(editor.getShortcuts()).toBe(
+        "Type to filter · Enter select · Esc back",
+      );
+    });
+
+    it("returns undefined for a nested submenu without getShortcuts", () => {
+      const editor = makeEditor([
+        {
+          id: "nested",
+          type: "submenu",
+          label: "Nested",
+          getValue: () => "open",
+          submenu: () => ({
+            render: () => ["nested"],
+            handleInput: () => {},
+            invalidate: () => {},
+          }),
+        },
+      ]);
+
+      editor.handleInput(ENTER);
+
+      expect(editor.getShortcuts()).toBeUndefined();
+    });
+  });
+
+  describe("hideHint", () => {
+    const textField = (): SettingsDetailField => ({
+      id: "theme",
+      type: "text",
+      label: "Theme",
+      description: "A short description.",
+      getValue: () => "dark",
+      setValue: () => {},
+    });
+
+    it("omits the footer hint lines in list and text modes", () => {
+      const editor = new SettingsDetailEditor({
+        title: "Details",
+        fields: [textField()],
+        theme: createTheme(),
+        onDone: () => {},
+        hideHint: true,
+      });
+
+      expect(editor.render(80).join("\n")).not.toContain("Esc back");
+
+      editor.handleInput(ENTER);
+      expect(editor.render(80).join("\n")).not.toContain("Enter: confirm");
+    });
+
+    it("still renders exactly contentHeight lines with the hints hidden", () => {
+      const editor = new SettingsDetailEditor({
+        title: "Details",
+        fields: [textField()],
+        theme: createTheme(),
+        onDone: () => {},
+        hideHint: true,
+        contentHeight: 12,
+      });
+
+      const lines = editor.render(80);
+      expect(lines).toHaveLength(12);
+      // The description stays bottom-anchored; the freed hint lines are
+      // absorbed by the padding.
+      const descIndex = lines.findIndex((line) =>
+        line.includes("A short description."),
+      );
+      expect(descIndex).toBe(11);
+
+      editor.handleInput(ENTER);
+      expect(editor.render(80)).toHaveLength(12);
+    });
+
+    it("renders the same hints as before when hideHint is not set", () => {
+      const editor = new SettingsDetailEditor({
+        title: "Details",
+        fields: [textField()],
+        theme: createTheme(),
+        onDone: () => {},
+      });
+
+      const rendered = editor.render(80).join("\n");
+      expect(rendered).toContain(
+        "↑/↓ or j/k navigate · Enter edit/open · Esc back",
+      );
+
+      editor.handleInput(ENTER);
+      expect(editor.render(80).join("\n")).toContain(
+        "Enter: confirm · Esc: cancel",
+      );
+    });
+  });
+
   describe("contentHeight", () => {
     const LONG_DESCRIPTION =
       "This description is intentionally very long so that it wraps onto " +

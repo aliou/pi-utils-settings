@@ -274,7 +274,7 @@ buildSections: (_tabConfig, _resolved, ctx) => [
 
 ### Submenu support
 
-Items can open submenus by providing a `submenu` factory. The factory receives the current value, a `done` callback, and a `{ requestRender }` context so async submenus can trigger a redraw. Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):
+Items can open submenus by providing a `submenu` factory. The factory receives the current value, a `done` callback, and a `{ requestRender, hideHint }` context so async submenus can trigger a redraw. Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):
 
 ```typescript
 import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
@@ -436,8 +436,20 @@ const detail = new SettingsDetailEditor({
   theme: getSettingsListTheme(),
   onDone: (summary) => done(summary),
   getDoneSummary: () => `${favorites.length} items`,
+  // When hosted via registerSettingsCommand, forward the submenu context's
+  // hideHint so the editor's own footer is hidden and the panel shows the
+  // editor's shortcuts as its single controls line.
+  hideHint: submenuCtx.hideHint,
 });
 ```
+
+### Unified shortcut line
+
+The settings panel renders exactly one shortcut line at a time, always below the separator. When a submenu is open and implements `getShortcuts(): string | undefined` (see `SettingsSubmenuComponent`), the panel's controls line shows the submenu's current shortcuts (e.g. `↑/↓ or j/k navigate · Enter edit/open · Esc back`, or `Enter: confirm · Esc: cancel` while a field editor is open) instead of the default `Enter/Space change · Ctrl+S save · Esc close`. Submenus without `getShortcuts()` fall back to the default controls line.
+
+`SettingsDetailEditor` implements `getShortcuts()` per mode and accepts a `hideHint` option that suppresses its own hint footer. `SectionedSettings` forwards its `hideHint` option through the submenu factory context, so editors hosted by `registerSettingsCommand` only need `hideHint: ctx.hideHint` (as above) to keep a single shortcut line. Ctrl+S still saves from any depth even though the submenu's line may not mention it, and Esc semantics stay accurate: with a submenu open, Esc backs out of the submenu rather than closing the panel.
+
+Standalone `SettingsDetailEditor` users should leave `hideHint` unset so the editor keeps rendering its own hint footer.
 
 ### ConfigStore interface
 

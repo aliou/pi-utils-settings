@@ -4,6 +4,8 @@ import {
   type SectionedSettingItem,
   SectionedSettings,
   type SettingsSection,
+  type SettingsSubmenuComponent,
+  type SettingsSubmenuContext,
 } from "./sectioned-settings";
 
 const ENTER = "\r";
@@ -155,6 +157,113 @@ describe("SectionedSettings", () => {
 
     expect(onChange).not.toHaveBeenCalled();
     expect(settings.hasActiveSubmenu()).toBe(false);
+  });
+
+  describe("submenu shortcuts", () => {
+    function makeSettingsWithSubmenu(
+      submenuComponent: SettingsSubmenuComponent,
+      options: { hideHint?: boolean } = {},
+      onCtx?: (ctx: SettingsSubmenuContext) => void,
+    ): SectionedSettings {
+      return new SectionedSettings(
+        [
+          makeSection([
+            {
+              id: "detail",
+              label: "Detail",
+              currentValue: "edit",
+              submenu: (_value, _done, ctx) => {
+                onCtx?.(ctx);
+                return submenuComponent;
+              },
+            },
+          ]),
+        ],
+        10,
+        createTheme(),
+        vi.fn(),
+        vi.fn(),
+        options,
+      );
+    }
+
+    it("returns undefined when no submenu is open", () => {
+      const settings = makeSettingsWithSubmenu({
+        render: () => ["submenu"],
+        handleInput: () => {},
+        invalidate: () => {},
+        getShortcuts: () => "Esc back",
+      });
+
+      expect(settings.getActiveSubmenuShortcuts()).toBeUndefined();
+    });
+
+    it("exposes the active submenu's shortcuts", () => {
+      const settings = makeSettingsWithSubmenu({
+        render: () => ["submenu"],
+        handleInput: () => {},
+        invalidate: () => {},
+        getShortcuts: () => "↑/↓ navigate · Enter edit/open · Esc back",
+      });
+
+      settings.handleInput(ENTER);
+
+      expect(settings.hasActiveSubmenu()).toBe(true);
+      expect(settings.getActiveSubmenuShortcuts()).toBe(
+        "↑/↓ navigate · Enter edit/open · Esc back",
+      );
+    });
+
+    it("returns undefined when the submenu does not implement getShortcuts", () => {
+      const settings = makeSettingsWithSubmenu({
+        render: () => ["submenu"],
+        handleInput: () => {},
+        invalidate: () => {},
+      });
+
+      settings.handleInput(ENTER);
+
+      expect(settings.hasActiveSubmenu()).toBe(true);
+      expect(settings.getActiveSubmenuShortcuts()).toBeUndefined();
+    });
+
+    it("forwards its hideHint option to submenu factories", () => {
+      let capturedCtx: SettingsSubmenuContext | undefined;
+      const settings = makeSettingsWithSubmenu(
+        {
+          render: () => ["submenu"],
+          handleInput: () => {},
+          invalidate: () => {},
+        },
+        { hideHint: true },
+        (ctx) => {
+          capturedCtx = ctx;
+        },
+      );
+
+      settings.handleInput(ENTER);
+
+      expect(capturedCtx?.hideHint).toBe(true);
+    });
+
+    it("defaults hideHint to false for standalone use", () => {
+      let capturedCtx: SettingsSubmenuContext | undefined;
+      const settings = makeSettingsWithSubmenu(
+        {
+          render: () => ["submenu"],
+          handleInput: () => {},
+          invalidate: () => {},
+        },
+        {},
+        (ctx) => {
+          capturedCtx = ctx;
+        },
+      );
+
+      settings.handleInput(ENTER);
+
+      expect(capturedCtx?.hideHint).toBe(false);
+    });
   });
 
   it("filters items with search input", () => {

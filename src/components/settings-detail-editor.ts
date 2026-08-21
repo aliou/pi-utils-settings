@@ -7,7 +7,10 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import type { SettingsSubmenuContext } from "./sectioned-settings";
+import type {
+  SettingsSubmenuComponent,
+  SettingsSubmenuContext,
+} from "./sectioned-settings";
 
 interface SettingsDetailFieldBase {
   id: string;
@@ -76,6 +79,13 @@ export interface SettingsDetailEditorOptions {
   emptyStateText?: string;
   hintSuffix?: string;
   /**
+   * Hide the built-in hint/footer lines (when the host panel renders its
+   * own controls line). Hosts can read the shortcuts to display via
+   * `getShortcuts()`; registerSettingsCommand wires this automatically
+   * through the submenu factory context (`ctx.hideHint`).
+   */
+  hideHint?: boolean;
+  /**
    * Render hook for nested submenus that load data asynchronously.
    * If omitted, async submenus can still be used, but they cannot request a redraw.
    */
@@ -112,6 +122,7 @@ export class SettingsDetailEditor implements Component {
   private readonly maxVisible: number;
   private readonly emptyStateText: string;
   private readonly hintSuffix: string;
+  private readonly hideHint: boolean;
   private readonly requestRender: () => void;
   private readonly requestSave: () => void;
   private readonly contentHeight: number;
@@ -140,6 +151,7 @@ export class SettingsDetailEditor implements Component {
     this.maxVisible = options.maxVisible ?? 10;
     this.emptyStateText = options.emptyStateText ?? "No editable fields";
     this.hintSuffix = options.hintSuffix ?? "";
+    this.hideHint = options.hideHint ?? false;
     this.requestRender = options.requestRender ?? (() => {});
     this.requestSave = options.requestSave ?? (() => {});
     this.contentHeight = options.contentHeight ?? 0;
@@ -154,6 +166,41 @@ export class SettingsDetailEditor implements Component {
 
   invalidate(): void {
     this.submenuComponent?.invalidate?.();
+  }
+
+  /**
+   * Shortcuts the editor currently responds to, matching the active mode.
+   * When a nested submenu is open, its own shortcuts are delegated to if it
+   * exposes them. Hosts (SectionedSettings, registerSettingsCommand) use
+   * this to render a single unified controls line while the editor is open.
+   */
+  getShortcuts(): string | undefined {
+    if (this.submenuComponent) {
+      return (
+        this.submenuComponent as SettingsSubmenuComponent
+      ).getShortcuts?.();
+    }
+
+    if (this.mode === "text") {
+      return "Enter: confirm · Esc: cancel";
+    }
+
+    if (this.mode === "enum") {
+      const field = this.getActiveEnumField();
+      if (!field) return undefined;
+      if (this.resolveEnumOptions(field).length === 0) return "Esc: back";
+      return "↑/↓ or j/k navigate · Enter: choose · Esc: cancel";
+    }
+
+    if (this.mode === "confirm") {
+      const field = this.getActiveActionField();
+      if (!field) return undefined;
+      return (field.confirmHint ?? "Enter/y: confirm · Esc/n: cancel").trim();
+    }
+
+    if (this.fields.length === 0) return "Esc: back";
+    const suffix = this.hintSuffix ? ` · ${this.hintSuffix}` : "";
+    return `↑/↓ or j/k navigate · Enter edit/open · Esc back${suffix}`;
   }
 
   render(width: number): string[] {
@@ -203,8 +250,10 @@ export class SettingsDetailEditor implements Component {
 
     if (this.fields.length === 0) {
       lines.push(this.theme.hint(`  ${this.emptyStateText}`));
-      lines.push("");
-      lines.push(this.theme.hint("  Esc: back"));
+      if (!this.hideHint) {
+        lines.push("");
+        lines.push(this.theme.hint("  Esc: back"));
+      }
       return lines;
     }
 
@@ -230,17 +279,20 @@ export class SettingsDetailEditor implements Component {
     }
 
     // Fixed layout: the list window flexes around the description block
-    // and the chrome (title block = 2 lines, hint block = 2 lines, scroll
-    // indicator) so the panel totals exactly contentHeight lines. The
+    // and the chrome (title block = 2 lines, hint block = 2 lines unless
+    // hideHint is set, scroll indicator) so the panel totals exactly
+    // contentHeight lines. The
     // scroll indicator only consumes a line when scrolling is actually
     // needed, so the window is recomputed once if it appears (avoiding
     // an off-by-one oscillation). Extreme case: when the description
     // plus chrome alone exceed contentHeight, the list floor is 1 line
     // and the total may exceed contentHeight — the description is never
     // truncated even then.
+    const hintHeight = this.hideHint ? 0 : 2;
     let visibleWindow = this.maxVisible;
     if (this.contentHeight > 0) {
-      const budget = this.contentHeight - 4 - descriptionBlock.length;
+      const budget =
+        this.contentHeight - 2 - hintHeight - descriptionBlock.length;
       visibleWindow = Math.max(1, Math.min(this.maxVisible, budget));
       if (this.fields.length > visibleWindow) {
         visibleWindow = Math.max(1, visibleWindow - 1);
@@ -291,7 +343,7 @@ export class SettingsDetailEditor implements Component {
       // just above the hint line. When the selected field has no
       // description, the padding absorbs the space instead.
       for (
-        let i = 2 + lines.length + descriptionBlock.length + 2;
+        let i = 2 + lines.length + descriptionBlock.length + hintHeight;
         i < this.contentHeight;
         i++
       ) {
@@ -300,13 +352,15 @@ export class SettingsDetailEditor implements Component {
     }
     lines.push(...descriptionBlock);
 
-    lines.push("");
-    const suffix = this.hintSuffix ? ` · ${this.hintSuffix}` : "";
-    lines.push(
-      this.theme.hint(
-        `  ↑/↓ or j/k navigate · Enter edit/open · Esc back${suffix}`,
-      ),
-    );
+    if (!this.hideHint) {
+      lines.push("");
+      const suffix = this.hintSuffix ? ` · ${this.hintSuffix}` : "";
+      lines.push(
+        this.theme.hint(
+          `  ↑/↓ or j/k navigate · Enter edit/open · Esc back${suffix}`,
+        ),
+      );
+    }
 
     return lines;
   }
@@ -329,8 +383,10 @@ export class SettingsDetailEditor implements Component {
       lines.push(this.theme.value(`  ${this.inputError}`, true));
     }
 
-    lines.push("");
-    lines.push(this.theme.hint("  Enter: confirm · Esc: cancel"));
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(this.theme.hint("  Enter: confirm · Esc: cancel"));
+    }
     return lines;
   }
 
@@ -347,8 +403,10 @@ export class SettingsDetailEditor implements Component {
     const options = this.resolveEnumOptions(field);
     if (options.length === 0) {
       lines.push(this.theme.hint("  (no choices)"));
-      lines.push("");
-      lines.push(this.theme.hint("  Esc: back"));
+      if (!this.hideHint) {
+        lines.push("");
+        lines.push(this.theme.hint("  Esc: back"));
+      }
       return lines;
     }
 
@@ -369,10 +427,12 @@ export class SettingsDetailEditor implements Component {
       lines.push(prefix + text);
     }
 
-    lines.push("");
-    lines.push(
-      this.theme.hint("  ↑/↓ or j/k navigate · Enter: choose · Esc: cancel"),
-    );
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(
+        this.theme.hint("  ↑/↓ or j/k navigate · Enter: choose · Esc: cancel"),
+      );
+    }
 
     return lines;
   }
@@ -393,12 +453,14 @@ export class SettingsDetailEditor implements Component {
       lines.push(this.theme.value(`  ${line}`, true));
     }
 
-    lines.push("");
-    lines.push(
-      this.theme.hint(
-        field.confirmHint ?? "  Enter/y: confirm · Esc/n: cancel",
-      ),
-    );
+    if (!this.hideHint) {
+      lines.push("");
+      lines.push(
+        this.theme.hint(
+          field.confirmHint ?? "  Enter/y: confirm · Esc/n: cancel",
+        ),
+      );
+    }
 
     return lines;
   }
@@ -500,7 +562,11 @@ export class SettingsDetailEditor implements Component {
           this.closeSubmenu();
           this.requestRender();
         },
-        { requestRender: this.requestRender, requestSave: this.requestSave },
+        {
+          requestRender: this.requestRender,
+          requestSave: this.requestSave,
+          hideHint: this.hideHint,
+        },
       );
       return;
     }

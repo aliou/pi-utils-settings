@@ -235,7 +235,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
               currentValue: `${autoSave ? "auto" : "manual"} · tab ${tabSize}`,
               description:
                 "Opens a focused detail panel. Demonstrates text, enum, boolean, nested submenu, and destructive action fields.",
-              submenu: (_current, done) => {
+              submenu: (_current, done, submenuCtx) => {
                 const current = tabConfig ?? ({} as ExampleConfig);
                 let nextTheme = theme;
                 let nextAutoSave = autoSave;
@@ -264,6 +264,9 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                 return new SettingsDetailEditor({
                   title: "Editor details",
                   theme: ctx.theme,
+                  // The panel renders the controls line; hide the editor's
+                  // own hint footer so only one shortcut line is visible.
+                  hideHint: submenuCtx.hideHint,
                   fields: [
                     {
                       id: "appearance.theme.raw",
@@ -451,7 +454,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                   : `${profiles.length} profile${profiles.length === 1 ? "" : "s"}`,
               description:
                 "Array-of-objects example. Opens a detail panel where each profile opens its own object editor.",
-              submenu: (_current, done) => {
+              submenu: (_current, done, submenuCtx) => {
                 const current = tabConfig ?? ({} as ExampleConfig);
                 const nextProfiles = profiles.map((profile) => ({
                   ...profile,
@@ -468,6 +471,7 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                 return new SettingsDetailEditor({
                   title: "Profiles",
                   theme: ctx.theme,
+                  hideHint: submenuCtx.hideHint,
                   fields: nextProfiles.map((_, index) => ({
                     id: `profiles.${index}`,
                     type: "submenu" as const,
@@ -479,8 +483,9 @@ export function registerExampleSettings(pi: ExtensionAPI): void {
                       const status = profile.enabled ? "on" : "off";
                       return `${profile.name ?? "Unnamed"} · ${profile.theme ?? "dark"} · ${status}`;
                     },
-                    submenu: (doneNested) =>
+                    submenu: (doneNested, nestedCtx) =>
                       new SettingsDetailEditor({
+                        hideHint: nestedCtx.hideHint,
                         title: () => {
                           const profile = nextProfiles[index];
                           return profile

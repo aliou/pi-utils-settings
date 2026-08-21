@@ -10,6 +10,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   }),
 }));
 
+import { SettingsDetailEditor } from "./components/settings-detail-editor";
 import {
   defaultChangeHandler,
   registerSettingsCommand,
@@ -24,13 +25,24 @@ interface TestConfig {
 const ENTER = "\r";
 const ESC = "\u001b";
 const TAB = "\t";
+const DOWN = "\u001b[B";
 const CTRL_S = "\u0013";
+
+function countOccurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+
+interface PanelComponent {
+  render: (width: number) => string[];
+  handleInput?: (data: string) => void;
+  invalidate?: () => void;
+}
 
 function makeSettingsHarness(
   overrides: Partial<SettingsCommandOptions<TestConfig, TestConfig>> = {},
 ) {
   let handler: ((args: unknown, ctx: unknown) => Promise<void>) | undefined;
-  let component: { handleInput?: (data: string) => void } | undefined;
+  let component: PanelComponent | undefined;
   const done = vi.fn();
   const notify = vi.fn();
 
@@ -82,10 +94,14 @@ function makeSettingsHarness(
       custom: vi.fn((factory: (...args: unknown[]) => unknown) => {
         component = factory(
           { requestRender },
-          {},
+          {
+            fg: (_color: string, text: string) => text,
+            bg: (_color: string, text: string) => text,
+            bold: (text: string) => text,
+          },
           undefined,
           done,
-        ) as typeof component;
+        ) as PanelComponent;
       }),
     },
   };
@@ -290,6 +306,161 @@ describe("registerSettingsCommand", () => {
     expect(harness.configStore.save).toHaveBeenCalledWith("global", {
       feature: "on",
     });
+  });
+});
+
+describe("unified shortcut line", () => {
+  const LIST_SHORTCUTS = "↑/↓ or j/k navigate · Enter edit/open · Esc back";
+
+  function makeDetailEditorHarness() {
+    let capturedHideHint: boolean | undefined;
+    const harness = makeSettingsHarness({
+      buildSections: (_tabConfig, _resolved, ctx) => [
+        {
+          label: "General",
+          items: [
+            {
+              id: "feature",
+              label: "Feature",
+              currentValue: "off",
+              values: ["off", "on"],
+            },
+            {
+              id: "detail",
+              label: "Detail",
+              currentValue: "edit",
+              submenu: (_value, done, subCtx) => {
+                capturedHideHint = subCtx.hideHint;
+                return new SettingsDetailEditor({
+                  title: "Editor details",
+                  theme: ctx.theme,
+                  fields: [
+                    {
+                      id: "name",
+                      type: "text",
+                      label: "Name",
+                      getValue: () => "dark",
+                      setValue: () => {},
+                    },
+                  ],
+                  onDone: (summary) => done(summary),
+                  hideHint: subCtx.hideHint,
+                });
+              },
+            },
+          ],
+        },
+      ],
+    });
+    return { harness, getHideHint: () => capturedHideHint };
+  }
+
+  it("shows the default controls line when no submenu is open", async () => {
+    const { harness } = makeDetailEditorHarness();
+    const component = await harness.open();
+
+    const output = component.render(80).join("\n");
+    expect(output).toContain("Enter/Space change · Ctrl+S save · Esc close");
+    expect(output).not.toContain("Esc back");
+  });
+
+  it("shows exactly one shortcut line — the submenu's — while a submenu is open", async () => {
+    const { harness, getHideHint } = makeDetailEditorHarness();
+    const component = await harness.open();
+
+    component.handleInput?.(DOWN);
+    component.handleInput?.(ENTER);
+
+    // registerSettingsCommand hides its own hint, which the submenu factory
+    // context forwards so the editor can suppress its own footer.
+    expect(getHideHint()).toBe(true);
+
+    const output = component.render(80).join("\n");
+    // The submenu's shortcuts appear exactly once: in the panel controls
+    // line below the separator, not in the editor's own footer.
+    expect(countOccurrences(output, LIST_SHORTCUTS)).toBe(1);
+    expect(output).not.toContain("Enter/Space change");
+    expect(output).not.toContain("Esc close");
+  });
+
+  it("shows the editing variant while a text field editor is open", async () => {
+    const { harness } = makeDetailEditorHarness();
+    const component = await harness.open();
+
+    component.handleInput?.(DOWN);
+    component.handleInput?.(ENTER); // open the detail editor
+    component.handleInput?.(ENTER); // open the text field editor
+
+    const output = component.render(80).join("\n");
+    expect(countOccurrences(output, "Enter: confirm · Esc: cancel")).toBe(1);
+    expect(output).not.toContain("Enter edit/open");
+    expect(output).not.toContain("Esc close");
+  });
+
+  it("Esc backs out of the submenu instead of closing the panel", async () => {
+    const { harness } = makeDetailEditorHarness();
+    const component = await harness.open();
+
+    component.handleInput?.(DOWN);
+    component.handleInput?.(ENTER); // open the detail editor
+    component.handleInput?.(ENTER); // open the text field editor
+
+    component.handleInput?.(ESC); // cancel editing, back to editor list
+    expect(harness.done).not.toHaveBeenCalled();
+    expect(component.render(80).join("\n")).toContain(LIST_SHORTCUTS);
+
+    component.handleInput?.(ESC); // back out of the submenu
+    expect(harness.done).not.toHaveBeenCalled();
+    expect(component.render(80).join("\n")).toContain("Esc close");
+
+    component.handleInput?.(ESC); // now Esc closes the panel
+    expect(harness.done).toHaveBeenCalledWith(undefined);
+  });
+
+  it("falls back to the default controls when the submenu exposes no shortcuts", async () => {
+    const harness = makeSettingsHarness({
+      buildSections: () => [
+        {
+          label: "General",
+          items: [
+            {
+              id: "sub",
+              label: "Sub",
+              currentValue: "edit",
+              submenu: () => ({
+                render: () => ["custom submenu"],
+                handleInput: () => {},
+                invalidate: () => {},
+              }),
+            },
+          ],
+        },
+      ],
+    });
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+
+    const output = component.render(80).join("\n");
+    expect(output).toContain("custom submenu");
+    expect(output).toContain("Enter/Space change · Ctrl+S save · Esc close");
+  });
+
+  it("keeps the panel height identical with and without an open submenu", async () => {
+    const { harness } = makeDetailEditorHarness();
+    const component = await harness.open();
+
+    const heightWithoutSubmenu = component.render(80).length;
+
+    component.handleInput?.(DOWN);
+    component.handleInput?.(ENTER);
+    const heightWithSubmenu = component.render(80).length;
+
+    component.handleInput?.(ENTER); // text-editing mode
+    const heightWhileEditing = component.render(80).length;
+
+    expect(heightWithSubmenu).toBe(heightWithoutSubmenu);
+    expect(heightWhileEditing).toBe(heightWithoutSubmenu);
   });
 });
 

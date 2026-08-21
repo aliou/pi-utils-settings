@@ -218,7 +218,7 @@ onSettingChange: (id, newValue, config) => {
 
 ### Submenu Items
 
-For arrays or complex values, use `submenu` instead of `values`. Inside `buildSections`, use `ctx.theme` (a `SettingsTheme` that works as both `SettingsListTheme` and full `Theme`). The submenu factory also receives a `{ requestRender }` context so async submenus can request a redraw once data is ready:
+For arrays or complex values, use `submenu` instead of `values`. Inside `buildSections`, use `ctx.theme` (a `SettingsTheme` that works as both `SettingsListTheme` and full `Theme`). The submenu factory also receives a `{ requestRender, hideHint }` context so async submenus can request a redraw once data is ready. `hideHint` is true when the host panel renders its own controls line; submenus with a built-in hint footer (like `SettingsDetailEditor`) should forward it (`hideHint: submenuCtx.hideHint`) and implement `getShortcuts()` so the panel shows exactly one shortcut line, accurate for the active submenu:
 
 ```typescript
 import { ArrayEditor, PathArrayEditor } from "@aliou/pi-utils-settings";

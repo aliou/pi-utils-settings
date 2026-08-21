@@ -36,6 +36,7 @@ export {
   SectionedSettings,
   type SectionedSettingsOptions,
   type SettingsSection,
+  type SettingsSubmenuComponent,
   type SettingsSubmenuContext,
 } from "./components/sectioned-settings";
 export {

@@ -24,6 +24,23 @@ export interface SettingsSubmenuContext {
   requestRender: () => void;
   /** Ask the host to save. No-op outside registerSettingsCommand. */
   requestSave?: () => void;
+  /**
+   * True when the host renders its own controls/shortcut line (e.g.
+   * registerSettingsCommand's panel). Submenus with a built-in hint footer
+   * (like SettingsDetailEditor) should forward this to their `hideHint`
+   * option so exactly one shortcut line is visible at a time.
+   */
+  hideHint?: boolean;
+}
+
+/**
+ * A submenu component hosted by SectionedSettings. Submenus may implement
+ * `getShortcuts()` to expose the shortcuts they currently respond to, so a
+ * host panel can show them in its own controls line while the submenu is
+ * open.
+ */
+export interface SettingsSubmenuComponent extends Component {
+  getShortcuts?(): string | undefined;
 }
 
 /** Setting item used by SectionedSettings, with a richer submenu contract. */
@@ -32,7 +49,7 @@ export type SectionedSettingItem = Omit<SettingItem, "submenu"> & {
     currentValue: string,
     done: (selectedValue?: string) => void,
     ctx: SettingsSubmenuContext,
-  ) => Component;
+  ) => SettingsSubmenuComponent;
 };
 
 export interface SettingsSection {
@@ -91,7 +108,7 @@ export class SectionedSettings implements Component {
   private requestRender: () => void;
   private requestSave: () => void;
   private contentHeight: number;
-  private submenuComponent: Component | null = null;
+  private submenuComponent: SettingsSubmenuComponent | null = null;
   private submenuItemIndex: number | null = null;
 
   constructor(
@@ -183,6 +200,15 @@ export class SectionedSettings implements Component {
   /** Returns true when a submenu is open (caller should not intercept input). */
   hasActiveSubmenu(): boolean {
     return this.submenuComponent !== null;
+  }
+
+  /**
+   * Shortcuts exposed by the active submenu, if any. Returns undefined when
+   * no submenu is open or the submenu does not implement `getShortcuts()`,
+   * in which case the host should show its default controls line.
+   */
+  getActiveSubmenuShortcuts(): string | undefined {
+    return this.submenuComponent?.getShortcuts?.();
   }
 
   invalidate(): void {
@@ -412,7 +438,11 @@ export class SectionedSettings implements Component {
           }
           this.requestRender();
         },
-        { requestRender: this.requestRender, requestSave: this.requestSave },
+        {
+          requestRender: this.requestRender,
+          requestSave: this.requestSave,
+          hideHint: this.hideHint,
+        },
       );
     } else if (item.values && item.values.length > 0) {
       const currentIndex = item.values.indexOf(item.currentValue);

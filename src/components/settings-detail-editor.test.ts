@@ -236,4 +236,117 @@ describe("SettingsDetailEditor", () => {
     editor.handleInput("x");
     expect(requestRender).toHaveBeenCalledTimes(2);
   });
+
+  describe("contentHeight", () => {
+    const LONG_DESCRIPTION =
+      "This description is intentionally very long so that it wraps onto " +
+      "several lines at narrow widths and its tail end is clipped.";
+
+    function makeBooleanFields(
+      count: number,
+      description?: string,
+    ): SettingsDetailField[] {
+      return Array.from({ length: count }, (_, i) => ({
+        id: `field-${i}`,
+        type: "boolean" as const,
+        label: `Field ${String(i).padStart(2, "0")}`,
+        description: i === 0 ? description : undefined,
+        getValue: () => false,
+        setValue: () => {},
+      }));
+    }
+
+    function makeEditor(
+      fields: SettingsDetailField[],
+      contentHeight: number,
+    ): SettingsDetailEditor {
+      return new SettingsDetailEditor({
+        title: "Details",
+        fields,
+        theme: createTheme(),
+        onDone: () => {},
+        contentHeight,
+      });
+    }
+
+    it("list mode pads to contentHeight with a bottom-anchored wrapped description and a shrunken window", () => {
+      const editor = makeEditor(makeBooleanFields(12, LONG_DESCRIPTION), 12);
+
+      const lines = editor.render(40);
+      expect(lines).toHaveLength(12);
+      const rendered = lines.join("\n");
+      // The description is fully wrapped, never truncated.
+      expect(rendered).toContain("clipped.");
+      expect(rendered).not.toContain("...");
+      // The field window shrank to make room: only 2 of 12 fields show.
+      expect(rendered).toContain("Field 00");
+      expect(rendered).not.toContain("Field 02");
+      expect(rendered).toContain("(1/12)");
+      // The description's last line sits immediately above the hint block.
+      expect(lines[9]).toContain("clipped.");
+      expect(lines[10]).toBe("");
+      expect(lines[11]).toContain("Esc back");
+    });
+
+    it("list mode bottom-anchors a short description with blank padding above it", () => {
+      const editor = makeEditor(
+        makeBooleanFields(2, "A short description."),
+        12,
+      );
+
+      const lines = editor.render(80);
+      expect(lines).toHaveLength(12);
+      const descIndex = lines.findIndex((line) =>
+        line.includes("A short description."),
+      );
+      expect(descIndex).toBe(9);
+      expect(lines[10]).toBe("");
+      expect(lines[11]).toContain("Esc back");
+      // The space between the field list and the description is blank padding.
+      expect(lines.slice(4, 9).every((line) => line === "")).toBe(true);
+    });
+
+    it("text-editing mode renders exactly contentHeight lines", () => {
+      const fields: SettingsDetailField[] = [
+        {
+          id: "theme",
+          type: "text",
+          label: "Theme",
+          getValue: () => "dark",
+          setValue: () => {},
+        },
+      ];
+      const editor = makeEditor(fields, 12);
+
+      editor.handleInput(ENTER);
+
+      const lines = editor.render(80);
+      expect(lines).toHaveLength(12);
+      expect(lines.join("\n")).toContain("Theme");
+    });
+
+    it("empty state renders exactly contentHeight lines", () => {
+      const editor = makeEditor([], 12);
+
+      const lines = editor.render(80);
+      expect(lines).toHaveLength(12);
+      expect(lines.join("\n")).toContain("No editable fields");
+    });
+
+    it("renders identically when the option is unset", () => {
+      const withoutOption = new SettingsDetailEditor({
+        title: "Details",
+        fields: makeBooleanFields(3, "A short description."),
+        theme: createTheme(),
+        onDone: () => {},
+      });
+
+      const baseline = withoutOption.render(40);
+      expect(
+        makeEditor(makeBooleanFields(3, "A short description."), 0).render(40),
+      ).toEqual(baseline);
+      // No padding is added: title block + fields + description + hint.
+      expect(baseline.join("\n")).toContain("A short description.");
+    });
+  });
 });

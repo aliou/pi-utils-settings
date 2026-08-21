@@ -57,9 +57,14 @@ export interface SectionedSettingsOptions {
    */
   requestSave?: () => void;
   /**
-   * Minimum number of lines for the rendered content.
-   * If the list renders fewer lines, it pads with blanks.
-   * This keeps the settings height stable across tabs.
+   * Fixed number of lines for the rendered content.
+   * When set, the item list window shrinks to make room for the selected
+   * item's fully wrapped description: the description (never truncated)
+   * is bottom-anchored just above the hint line, and blank padding fills
+   * the space between the list and the description so the content totals
+   * exactly this many lines. When unset (or 0), the content grows with
+   * the list and the description is rendered directly after it (legacy
+   * behavior).
    */
   contentHeight?: number;
 }
@@ -188,6 +193,9 @@ export class SectionedSettings implements Component {
     const lines = this.submenuComponent
       ? this.submenuComponent.render(width)
       : this.renderMainList(width);
+    // The main list manages its own height via the flex layout when
+    // contentHeight is set; this pads what does not (submenus, empty
+    // filter results) so the panel still totals contentHeight lines.
     for (let i = lines.length; i < this.contentHeight; i++) {
       lines.push("");
     }
@@ -271,17 +279,52 @@ export class SectionedSettings implements Component {
       });
     }
 
+    // Description block for the selected item: a blank separator plus
+    // the fully wrapped description. Computed before the list window so
+    // the window can shrink to make room for it; never truncated.
+    const selectedItem = allItems[this.selectedIndex];
+    const descriptionBlock: string[] = [];
+    if (selectedItem?.description) {
+      descriptionBlock.push("");
+      const wrappedDesc = wrapTextWithAnsi(selectedItem.description, width - 4);
+      for (const line of wrappedDesc) {
+        descriptionBlock.push(this.theme.description(`  ${line}`));
+      }
+    }
+
+    // Fixed layout: the list window flexes around the description block
+    // and the chrome (search input, scroll indicator, hint line) so the
+    // content totals exactly contentHeight lines. The scroll indicator
+    // only consumes a line when scrolling is actually needed, so the
+    // window is recomputed once if it appears (avoiding an off-by-one
+    // oscillation). Extreme case: when the description plus chrome alone
+    // exceed contentHeight, the list floor is 1 line and the total may
+    // exceed contentHeight — the description is never truncated even then.
+    const hintHeight = this.hideHint ? 0 : 2;
+    let visibleWindow = this.maxVisible;
+    if (this.contentHeight > 0) {
+      const budget =
+        this.contentHeight -
+        lines.length -
+        hintHeight -
+        descriptionBlock.length;
+      visibleWindow = Math.max(1, Math.min(this.maxVisible, budget));
+      if (rendered.length > visibleWindow) {
+        visibleWindow = Math.max(1, visibleWindow - 1);
+      }
+    }
+
     // Scrolling: find the rendered index of the selected item
     const selectedRenderedIdx = rendered.findIndex((r) => r.isSelected);
     const totalLines = rendered.length;
     const startLine = Math.max(
       0,
       Math.min(
-        selectedRenderedIdx - Math.floor(this.maxVisible / 2),
-        totalLines - this.maxVisible,
+        selectedRenderedIdx - Math.floor(visibleWindow / 2),
+        totalLines - visibleWindow,
       ),
     );
-    const endLine = Math.min(startLine + this.maxVisible, totalLines);
+    const endLine = Math.min(startLine + visibleWindow, totalLines);
 
     for (let i = startLine; i < endLine; i++) {
       const r = rendered[i];
@@ -295,15 +338,20 @@ export class SectionedSettings implements Component {
       );
     }
 
-    // Description for selected item
-    const selectedItem = allItems[this.selectedIndex];
-    if (selectedItem?.description) {
-      lines.push("");
-      const wrappedDesc = wrapTextWithAnsi(selectedItem.description, width - 4);
-      for (const line of wrappedDesc) {
-        lines.push(this.theme.description(`  ${line}`));
+    if (this.contentHeight > 0) {
+      // Bottom-anchor the description: padding goes between the list and
+      // the description block, so the description's last line always sits
+      // just above the hint line. When the selected item has no
+      // description, the padding absorbs the space instead.
+      for (
+        let i = lines.length + descriptionBlock.length + hintHeight;
+        i < this.contentHeight;
+        i++
+      ) {
+        lines.push("");
       }
     }
+    lines.push(...descriptionBlock);
 
     if (!this.hideHint) {
       this.addHintLine(lines);

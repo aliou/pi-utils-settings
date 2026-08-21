@@ -85,6 +85,15 @@ export interface SettingsDetailEditorOptions {
    * standalone; registerSettingsCommand intercepts Ctrl+S at the root.
    */
   requestSave?: () => void;
+  /**
+   * Fixed number of lines for the rendered panel.
+   * When set, the field list window shrinks to make room for the selected
+   * field's fully wrapped description: the description (never truncated)
+   * is bottom-anchored just above the hint line, and every mode pads to
+   * this height so the panel never changes size while a submenu is open.
+   * When unset (or 0), the panel grows with its content (legacy behavior).
+   */
+  contentHeight?: number;
 }
 
 type EditorMode = "list" | "text" | "enum" | "confirm";
@@ -105,6 +114,7 @@ export class SettingsDetailEditor implements Component {
   private readonly hintSuffix: string;
   private readonly requestRender: () => void;
   private readonly requestSave: () => void;
+  private readonly contentHeight: number;
 
   private selectedIndex = 0;
   private mode: EditorMode = "list";
@@ -132,6 +142,7 @@ export class SettingsDetailEditor implements Component {
     this.hintSuffix = options.hintSuffix ?? "";
     this.requestRender = options.requestRender ?? (() => {});
     this.requestSave = options.requestSave ?? (() => {});
+    this.contentHeight = options.contentHeight ?? 0;
 
     this.input.onSubmit = (value) => this.submitInput(value);
     this.input.onEscape = () => {
@@ -147,7 +158,12 @@ export class SettingsDetailEditor implements Component {
 
   render(width: number): string[] {
     if (this.submenuComponent) {
-      return this.submenuComponent.render(width);
+      const lines = this.submenuComponent.render(width);
+      // Pad submenu output so the panel height stays stable at any depth.
+      for (let i = lines.length; i < this.contentHeight; i++) {
+        lines.push("");
+      }
+      return lines;
     }
 
     const lines: string[] = [];
@@ -156,16 +172,30 @@ export class SettingsDetailEditor implements Component {
     lines.push("");
 
     if (this.mode === "text") {
-      return [...lines, ...this.renderTextMode(width)];
+      return this.padToContentHeight([...lines, ...this.renderTextMode(width)]);
     }
     if (this.mode === "enum") {
-      return [...lines, ...this.renderEnumMode(width)];
+      return this.padToContentHeight([...lines, ...this.renderEnumMode(width)]);
     }
     if (this.mode === "confirm") {
-      return [...lines, ...this.renderConfirmMode(width)];
+      return this.padToContentHeight([
+        ...lines,
+        ...this.renderConfirmMode(width),
+      ]);
     }
 
-    return [...lines, ...this.renderListMode(width)];
+    return this.padToContentHeight([...lines, ...this.renderListMode(width)]);
+  }
+
+  /**
+   * Pad shorter output up to contentHeight. Modes other than list mode
+   * do not flex; they only pad so the panel height stays fixed.
+   */
+  private padToContentHeight(lines: string[]): string[] {
+    for (let i = lines.length; i < this.contentHeight; i++) {
+      lines.push("");
+    }
+    return lines;
   }
 
   private renderListMode(width: number): string[] {
@@ -183,14 +213,48 @@ export class SettingsDetailEditor implements Component {
       Math.max(...this.fields.map((field) => visibleWidth(field.label))),
     );
 
+    // Description block for the selected field: a blank separator plus
+    // the fully wrapped description. Computed before the list window so
+    // the window can shrink to make room for it; never truncated.
+    const selected = this.fields[this.selectedIndex];
+    const descriptionBlock: string[] = [];
+    if (selected?.description) {
+      descriptionBlock.push("");
+      const wrapped = wrapTextWithAnsi(
+        selected.description,
+        Math.max(1, width - 4),
+      );
+      for (const line of wrapped) {
+        descriptionBlock.push(this.theme.description(`  ${line}`));
+      }
+    }
+
+    // Fixed layout: the list window flexes around the description block
+    // and the chrome (title block = 2 lines, hint block = 2 lines, scroll
+    // indicator) so the panel totals exactly contentHeight lines. The
+    // scroll indicator only consumes a line when scrolling is actually
+    // needed, so the window is recomputed once if it appears (avoiding
+    // an off-by-one oscillation). Extreme case: when the description
+    // plus chrome alone exceed contentHeight, the list floor is 1 line
+    // and the total may exceed contentHeight — the description is never
+    // truncated even then.
+    let visibleWindow = this.maxVisible;
+    if (this.contentHeight > 0) {
+      const budget = this.contentHeight - 4 - descriptionBlock.length;
+      visibleWindow = Math.max(1, Math.min(this.maxVisible, budget));
+      if (this.fields.length > visibleWindow) {
+        visibleWindow = Math.max(1, visibleWindow - 1);
+      }
+    }
+
     const startIndex = Math.max(
       0,
       Math.min(
-        this.selectedIndex - Math.floor(this.maxVisible / 2),
-        this.fields.length - this.maxVisible,
+        this.selectedIndex - Math.floor(visibleWindow / 2),
+        this.fields.length - visibleWindow,
       ),
     );
-    const endIndex = Math.min(startIndex + this.maxVisible, this.fields.length);
+    const endIndex = Math.min(startIndex + visibleWindow, this.fields.length);
 
     for (let i = startIndex; i < endIndex; i++) {
       const field = this.fields[i];
@@ -221,17 +285,20 @@ export class SettingsDetailEditor implements Component {
       );
     }
 
-    const selected = this.fields[this.selectedIndex];
-    if (selected?.description) {
-      lines.push("");
-      const wrapped = wrapTextWithAnsi(
-        selected.description,
-        Math.max(1, width - 4),
-      );
-      for (const line of wrapped) {
-        lines.push(this.theme.description(`  ${line}`));
+    if (this.contentHeight > 0) {
+      // Bottom-anchor the description: padding goes between the list and
+      // the description block, so the description's last line always sits
+      // just above the hint line. When the selected field has no
+      // description, the padding absorbs the space instead.
+      for (
+        let i = 2 + lines.length + descriptionBlock.length + 2;
+        i < this.contentHeight;
+        i++
+      ) {
+        lines.push("");
       }
     }
+    lines.push(...descriptionBlock);
 
     lines.push("");
     const suffix = this.hintSuffix ? ` · ${this.hintSuffix}` : "";

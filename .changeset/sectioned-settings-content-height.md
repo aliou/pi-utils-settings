@@ -2,4 +2,4 @@
 "@aliou/pi-utils-settings": minor
 ---
 
-Add a `contentHeight` option to `SectionedSettings`: when the rendered body is shorter than the given number of lines, it is padded with blank lines so the panel height stays stable across tabs and cursor moves (same behavior as the Wizard option of the same name). `registerSettingsCommand` now passes a fixed `contentHeight` of 20 (search input + blank, up to 15 visible item lines, scroll indicator, description block), so the settings panel no longer jumps in height when switching tabs.
+Add a `contentHeight` option to `SectionedSettings`: the rendered body is held at exactly the given number of lines, so the panel height stays stable across tabs and cursor moves (same goal as the Wizard's `minContentHeight` option). `registerSettingsCommand` passes a `contentHeight` of 20 by default, so the settings panel no longer jumps in height when switching tabs. See the flex-content-height-layout changeset for the layout details.

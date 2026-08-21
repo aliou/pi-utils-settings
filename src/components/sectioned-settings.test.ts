@@ -182,19 +182,19 @@ describe("SectionedSettings", () => {
     expect(rendered).not.toContain("Alpha");
   });
 
-  describe("minContentHeight", () => {
+  describe("contentHeight", () => {
     const oneItem = () => [
       makeSection([{ id: "feature", label: "Feature", currentValue: "off" }]),
     ];
 
-    it("pads short content with blank lines up to minContentHeight", () => {
+    it("pads short content with blank lines up to contentHeight", () => {
       const settings = new SectionedSettings(
         oneItem(),
         10,
         createTheme(),
         vi.fn(),
         vi.fn(),
-        { minContentHeight: 12 },
+        { contentHeight: 12 },
       );
 
       const lines = settings.render(80);
@@ -204,7 +204,7 @@ describe("SectionedSettings", () => {
       expect(lines.slice(4).every((line) => line === "")).toBe(true);
     });
 
-    it("does not truncate content taller than minContentHeight", () => {
+    it("does not truncate content taller than contentHeight", () => {
       const items = Array.from({ length: 20 }, (_, i) => ({
         id: `item-${i}`,
         label: `Item ${i}`,
@@ -217,7 +217,7 @@ describe("SectionedSettings", () => {
         createTheme(),
         vi.fn(),
         vi.fn(),
-        { minContentHeight: 5 },
+        { contentHeight: 5 },
       );
 
       const lines = settings.render(80);
@@ -239,7 +239,7 @@ describe("SectionedSettings", () => {
         createTheme(),
         vi.fn(),
         vi.fn(),
-        { minContentHeight: 0 },
+        { contentHeight: 0 },
       );
 
       const baseline = withoutOption.render(80);

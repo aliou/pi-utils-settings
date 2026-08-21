@@ -61,7 +61,7 @@ export interface SectionedSettingsOptions {
    * If the list renders fewer lines, it pads with blanks.
    * This keeps the settings height stable across tabs.
    */
-  minContentHeight?: number;
+  contentHeight?: number;
 }
 
 interface FlatEntry {
@@ -85,7 +85,7 @@ export class SectionedSettings implements Component {
   private hideHint: boolean;
   private requestRender: () => void;
   private requestSave: () => void;
-  private minContentHeight: number;
+  private contentHeight: number;
   private submenuComponent: Component | null = null;
   private submenuItemIndex: number | null = null;
 
@@ -107,7 +107,7 @@ export class SectionedSettings implements Component {
     this.hideHint = options.hideHint ?? false;
     this.requestRender = options.requestRender ?? (() => {});
     this.requestSave = options.requestSave ?? (() => {});
-    this.minContentHeight = options.minContentHeight ?? 0;
+    this.contentHeight = options.contentHeight ?? 0;
     this.selectedIndex = 0;
 
     if (this.searchEnabled) {
@@ -188,7 +188,7 @@ export class SectionedSettings implements Component {
     const lines = this.submenuComponent
       ? this.submenuComponent.render(width)
       : this.renderMainList(width);
-    for (let i = lines.length; i < this.minContentHeight; i++) {
+    for (let i = lines.length; i < this.contentHeight; i++) {
       lines.push("");
     }
     return lines;

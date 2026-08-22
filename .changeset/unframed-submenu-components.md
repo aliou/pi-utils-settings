@@ -1,5 +1,0 @@
----
-"@aliou/pi-utils-settings": minor
----
-
-Unframed submenu components: `FuzzySelector`, `FuzzyMultiSelector`, `ArrayEditor`, and `PathArrayEditor` no longer wrap their output in a bordered `Panel` — they render a plain styled title line followed by the body at full width, so they sit cleanly inside the `registerSettingsCommand` panel's own border instead of drawing a nested box. The internal `renderSettingsPanel` helper was removed (no replacement API; the old bordered layout has no supported opt-in). Each component now implements `getShortcuts(): string | undefined` (the `SettingsSubmenuComponent` contract), returning the shortcuts for its current internal mode (list vs add/edit input for the array editors, search vs no-matches for `FuzzySelector`), and accepts a `hideHint` option (default `false`) that suppresses its own shortcut footer when a host panel renders the single controls line — pass `hideHint: ctx.hideHint` from the submenu factory. For `FuzzyMultiSelector`, which already had a public `showHints` option (default `true`), `hideHint` takes precedence and wins over `showHints` when both are set.

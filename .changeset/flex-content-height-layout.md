@@ -1,5 +1,0 @@
----
-"@aliou/pi-utils-settings": minor
----
-
-`SectionedSettings`' `contentHeight` is now a true flex layout instead of pad-only: the item list window shrinks to make room for the selected item's description, which is wrapped in full (never truncated, no ellipsis) and bottom-anchored just above the hint line, while blank padding between the list and the description keeps the content at exactly the configured number of lines. This replaces the rejected `fixedDescriptionLines` truncation approach, which has been removed. `SettingsDetailEditor` gains a matching `contentHeight` option: in list mode the field window shrinks for the bottom-anchored, fully wrapped description, and its other modes (text editing, choice selector, empty state) pad to the fixed height so the panel never changes size. `registerSettingsCommand` accepts a new `contentHeight` option (default 20) wired to the settings body, replacing its previously hardcoded layout values. When `contentHeight` is unset, both components render exactly as before.

@@ -62,12 +62,24 @@ export interface SettingsDetailActionField extends SettingsDetailFieldBase {
   confirmHint?: string;
 }
 
+/**
+ * A non-interactive row: rendered dim, skipped by navigation and by Enter.
+ * Use as a section divider inside a long field list, or as an inert entry
+ * (with `value`) for items that exist but cannot be edited right now.
+ */
+export interface SettingsDetailHeaderField extends SettingsDetailFieldBase {
+  type: "header";
+  /** Optional dim text shown in the value column. */
+  value?: string;
+}
+
 export type SettingsDetailField =
   | SettingsDetailTextField
   | SettingsDetailEnumField
   | SettingsDetailBooleanField
   | SettingsDetailSubmenuField
-  | SettingsDetailActionField;
+  | SettingsDetailActionField
+  | SettingsDetailHeaderField;
 
 export interface SettingsDetailEditorOptions {
   title: string | (() => string);
@@ -155,6 +167,13 @@ export class SettingsDetailEditor implements Component {
     this.requestRender = options.requestRender ?? (() => {});
     this.requestSave = options.requestSave ?? (() => {});
     this.contentHeight = options.contentHeight ?? 0;
+
+    // Selection starts on the first interactive field: heading rows are
+    // never selectable.
+    const firstSelectable = this.fields.findIndex(
+      (field) => field.type !== "header",
+    );
+    if (firstSelectable > 0) this.selectedIndex = firstSelectable;
 
     this.input.onSubmit = (value) => this.submitInput(value);
     this.input.onEscape = () => {
@@ -312,17 +331,32 @@ export class SettingsDetailEditor implements Component {
       const field = this.fields[i];
       if (!field) continue;
 
-      const isSelected = i === this.selectedIndex;
-      const prefix = isSelected ? this.theme.cursor : "  ";
-      const prefixWidth = visibleWidth(prefix);
+      const prefixWidth = visibleWidth(this.theme.cursor);
       const labelPadded =
         field.label +
         " ".repeat(Math.max(0, maxLabelWidth - visibleWidth(field.label)));
-      const labelText = this.theme.label(labelPadded, isSelected);
 
       const separator = "  ";
       const usedWidth = prefixWidth + maxLabelWidth + visibleWidth(separator);
       const maxValueWidth = Math.max(1, width - usedWidth - 1);
+
+      // Header rows are inert: no cursor, dim label and optional value.
+      if (field.type === "header") {
+        const valueText = field.value
+          ? this.theme.hint(truncateToWidth(field.value, maxValueWidth, ""))
+          : "";
+        lines.push(
+          "  " +
+            this.theme.hint(labelPadded) +
+            (valueText ? separator + valueText : ""),
+        );
+        continue;
+      }
+
+      const isSelected = i === this.selectedIndex;
+      const prefix = isSelected ? this.theme.cursor : "  ";
+      const labelText = this.theme.label(labelPadded, isSelected);
+
       const valueText = this.theme.value(
         truncateToWidth(this.getFieldListValueText(field), maxValueWidth, ""),
         isSelected,
@@ -500,20 +534,12 @@ export class SettingsDetailEditor implements Component {
 
   private handleListInput(data: string): void {
     if (matchesKey(data, Key.up) || data === "k") {
-      if (this.fields.length === 0) return;
-      this.selectedIndex =
-        this.selectedIndex === 0
-          ? this.fields.length - 1
-          : this.selectedIndex - 1;
+      this.moveSelection(-1);
       return;
     }
 
     if (matchesKey(data, Key.down) || data === "j") {
-      if (this.fields.length === 0) return;
-      this.selectedIndex =
-        this.selectedIndex === this.fields.length - 1
-          ? 0
-          : this.selectedIndex + 1;
+      this.moveSelection(1);
       return;
     }
 
@@ -524,6 +550,19 @@ export class SettingsDetailEditor implements Component {
 
     if (matchesKey(data, Key.escape)) {
       this.onDone(this.getDoneSummary?.());
+    }
+  }
+
+  /** Move the selection by one row, wrapping around, skipping headers. */
+  private moveSelection(delta: 1 | -1): void {
+    if (!this.fields.some((field) => field.type !== "header")) return;
+    let index = this.selectedIndex;
+    for (let step = 0; step < this.fields.length; step++) {
+      index = (index + delta + this.fields.length) % this.fields.length;
+      if (this.fields[index]?.type !== "header") {
+        this.selectedIndex = index;
+        return;
+      }
     }
   }
 
@@ -702,7 +741,13 @@ export class SettingsDetailEditor implements Component {
       return field.getValue() || field.emptyValueText || "(empty)";
     }
 
-    return field.getValue?.() ?? "run";
+    if (field.type === "action") {
+      return field.getValue?.() ?? "run";
+    }
+
+    // Headers carry no editable value; the list renderer handles them
+    // before reaching this helper.
+    return field.value ?? "";
   }
 
   private getFieldListValueText(field: SettingsDetailField): string {

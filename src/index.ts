@@ -46,6 +46,7 @@ export {
   type SettingsDetailEditorOptions,
   type SettingsDetailEnumField,
   type SettingsDetailField,
+  type SettingsDetailHeaderField,
   type SettingsDetailSubmenuField,
   type SettingsDetailTextField,
 } from "./components/settings-detail-editor";

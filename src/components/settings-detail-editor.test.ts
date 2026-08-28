@@ -562,4 +562,82 @@ describe("SettingsDetailEditor", () => {
       expect(baseline.join("\n")).toContain("A short description.");
     });
   });
+
+  describe("header fields", () => {
+    const header = (id: string, value?: string): SettingsDetailField => ({
+      id,
+      type: "header" as const,
+      label: `Header ${id}`,
+      value,
+    });
+    const bool = (id: string): SettingsDetailField => ({
+      id,
+      type: "boolean" as const,
+      label: `Bool ${id}`,
+      getValue: () => false,
+      setValue: () => {},
+    });
+
+    it("starts the selection on the first non-header row", () => {
+      const editor = new SettingsDetailEditor({
+        title: "Details",
+        fields: [header("a"), bool("b")],
+        theme: createTheme(),
+        onDone: () => {},
+      });
+
+      expect(editor.render(80).join("\n")).toContain("> Bool b");
+    });
+
+    it("skips headers when navigating in both directions, with wrap", () => {
+      const editor = new SettingsDetailEditor({
+        title: "Details",
+        fields: [bool("a"), header("h"), bool("b")],
+        theme: createTheme(),
+        onDone: () => {},
+      });
+
+      expect(editor.render(80).join("\n")).toContain("> Bool a");
+      editor.handleInput("j");
+      expect(editor.render(80).join("\n")).toContain("> Bool b");
+      editor.handleInput("j");
+      expect(editor.render(80).join("\n")).toContain("> Bool a");
+      editor.handleInput("k");
+      expect(editor.render(80).join("\n")).toContain("> Bool b");
+    });
+
+    it("does not activate a header on Enter", () => {
+      const doneCalls: Array<string | undefined> = [];
+      const editor = new SettingsDetailEditor({
+        title: "Details",
+        fields: [header("only")],
+        theme: createTheme(),
+        onDone: (summary) => doneCalls.push(summary),
+      });
+
+      // Enter is a no-op; navigation does not loop forever; Esc still exits.
+      editor.handleInput(ENTER);
+      editor.handleInput("j");
+      editor.handleInput("k");
+      editor.handleInput(ESC);
+      expect(doneCalls).toHaveLength(1);
+    });
+
+    it("renders the optional value dimmed in the value column", () => {
+      const editor = new SettingsDetailEditor({
+        title: "Details",
+        fields: [bool("a"), header("stale", "not served by gateway")],
+        theme: createTheme(),
+        onDone: () => {},
+      });
+
+      const lines = editor.render(80).join("\n");
+      expect(lines).toContain("Header stale");
+      expect(lines).toContain("not served by gateway");
+      // Inert row: no cursor on the header even after moving down from the
+      // only selectable row (wraps back).
+      editor.handleInput("j");
+      expect(editor.render(80).join("\n")).toContain("> Bool a");
+    });
+  });
 });

@@ -6,9 +6,11 @@ import {
   type SettingsSection,
   type SettingsSubmenuComponent,
   type SettingsSubmenuContext,
+  type SubmenuDoneOptions,
 } from "./sectioned-settings";
 
 const ENTER = "\r";
+const DOWN = "\u001b[B";
 
 function createTheme(): SettingsListTheme {
   return {
@@ -157,6 +159,275 @@ describe("SectionedSettings", () => {
 
     expect(onChange).not.toHaveBeenCalled();
     expect(settings.hasActiveSubmenu()).toBe(false);
+  });
+
+  describe("submenu navigation (SettingsList parity)", () => {
+    function makeSubmenuComponent(): SettingsSubmenuComponent {
+      return {
+        render: () => ["submenu"],
+        handleInput: () => {},
+        invalidate: () => {},
+      };
+    }
+
+    it("selectItem moves selection to the matching item", () => {
+      const settings = new SectionedSettings(
+        [
+          makeSection([
+            { id: "alpha", label: "Alpha", currentValue: "a" },
+            { id: "bravo", label: "Bravo", currentValue: "b" },
+          ]),
+        ],
+        10,
+        createTheme(),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      settings.selectItem("bravo");
+
+      const rendered = settings.render(80).join("\n");
+      expect(rendered).toContain("> Bravo");
+      expect(rendered).not.toContain("> Alpha");
+    });
+
+    it("selectItem is a no-op for an unknown id", () => {
+      const settings = new SectionedSettings(
+        [
+          makeSection([
+            { id: "alpha", label: "Alpha", currentValue: "a" },
+            { id: "bravo", label: "Bravo", currentValue: "b" },
+          ]),
+        ],
+        10,
+        createTheme(),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      settings.selectItem("missing");
+
+      expect(settings.render(80).join("\n")).toContain("> Alpha");
+    });
+
+    it("done with navigateTo selects the target submenu item and auto-opens its submenu", () => {
+      const onChange = vi.fn();
+      let entryDone:
+        | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
+        | undefined;
+      let deepDone:
+        | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
+        | undefined;
+      let deepOpens = 0;
+
+      const settings = new SectionedSettings(
+        [
+          makeSection([
+            {
+              id: "entry",
+              label: "Entry",
+              currentValue: "x",
+              submenu: (_val, done) => {
+                entryDone = done;
+                return makeSubmenuComponent();
+              },
+            },
+            {
+              id: "deep",
+              label: "Deep",
+              currentValue: "y",
+              submenu: (_val, done) => {
+                deepOpens++;
+                deepDone = done;
+                return makeSubmenuComponent();
+              },
+            },
+          ]),
+        ],
+        10,
+        createTheme(),
+        onChange,
+        vi.fn(),
+      );
+
+      settings.handleInput(ENTER);
+      expect(settings.hasActiveSubmenu()).toBe(true);
+
+      entryDone?.("opened", { navigateTo: "deep" });
+
+      expect(onChange).toHaveBeenCalledWith("entry", "opened");
+      // The target's submenu opened automatically.
+      expect(settings.hasActiveSubmenu()).toBe(true);
+      expect(deepOpens).toBe(1);
+
+      // The cursor landed on the target: closing its submenu without
+      // navigation keeps the selection there.
+      deepDone?.(undefined);
+      expect(settings.hasActiveSubmenu()).toBe(false);
+      const rendered = settings.render(80).join("\n");
+      expect(rendered).toContain("> Deep");
+      expect(rendered).not.toContain("> Entry");
+    });
+
+    it("done with navigateTo cycles a values target and fires onChange", () => {
+      const onChange = vi.fn();
+      let entryDone:
+        | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
+        | undefined;
+
+      const settings = new SectionedSettings(
+        [
+          makeSection([
+            {
+              id: "entry",
+              label: "Entry",
+              currentValue: "x",
+              submenu: (_val, done) => {
+                entryDone = done;
+                return makeSubmenuComponent();
+              },
+            },
+            {
+              id: "toggle",
+              label: "Toggle",
+              currentValue: "off",
+              values: ["off", "on"],
+            },
+          ]),
+        ],
+        10,
+        createTheme(),
+        onChange,
+        vi.fn(),
+      );
+
+      settings.handleInput(ENTER);
+      entryDone?.(undefined, { navigateTo: "toggle" });
+
+      // The values target cycled through the normal path: one onChange for
+      // the cycled value, none for the valueless done(undefined).
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("toggle", "on");
+      expect(settings.hasActiveSubmenu()).toBe(false);
+      const rendered = settings.render(80).join("\n");
+      expect(rendered).toContain("> Toggle");
+      expect(rendered).toContain("on");
+    });
+
+    it("done with navigateTo just selects a plain target", () => {
+      const onChange = vi.fn();
+      let entryDone:
+        | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
+        | undefined;
+
+      const settings = new SectionedSettings(
+        [
+          makeSection([
+            {
+              id: "entry",
+              label: "Entry",
+              currentValue: "x",
+              submenu: (_val, done) => {
+                entryDone = done;
+                return makeSubmenuComponent();
+              },
+            },
+            { id: "plain", label: "Plain", currentValue: "p" },
+          ]),
+        ],
+        10,
+        createTheme(),
+        onChange,
+        vi.fn(),
+      );
+
+      settings.handleInput(ENTER);
+      entryDone?.(undefined, { navigateTo: "plain" });
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(settings.hasActiveSubmenu()).toBe(false);
+      const rendered = settings.render(80).join("\n");
+      expect(rendered).toContain("> Plain");
+      expect(rendered).not.toContain("> Entry");
+    });
+
+    it("no-options close keeps the selection on the item that opened the submenu", () => {
+      const onChange = vi.fn();
+      let entryDone:
+        | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
+        | undefined;
+
+      const settings = new SectionedSettings(
+        [
+          makeSection([
+            { id: "alpha", label: "Alpha", currentValue: "a" },
+            {
+              id: "entry",
+              label: "Entry",
+              currentValue: "x",
+              submenu: (_val, done) => {
+                entryDone = done;
+                return makeSubmenuComponent();
+              },
+            },
+          ]),
+        ],
+        10,
+        createTheme(),
+        onChange,
+        vi.fn(),
+      );
+
+      settings.handleInput(DOWN);
+      settings.handleInput(ENTER);
+      expect(settings.hasActiveSubmenu()).toBe(true);
+
+      entryDone?.("new");
+
+      expect(onChange).toHaveBeenCalledWith("entry", "new");
+      expect(settings.hasActiveSubmenu()).toBe(false);
+      const rendered = settings.render(80).join("\n");
+      expect(rendered).toContain("> Entry");
+      expect(rendered).not.toContain("> Alpha");
+    });
+
+    it("navigateTo to a missing id re-activates the current item", () => {
+      let entryDone:
+        | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
+        | undefined;
+      let opens = 0;
+
+      const settings = new SectionedSettings(
+        [
+          makeSection([
+            {
+              id: "entry",
+              label: "Entry",
+              currentValue: "x",
+              submenu: (_val, done) => {
+                opens++;
+                entryDone = done;
+                return makeSubmenuComponent();
+              },
+            },
+          ]),
+        ],
+        10,
+        createTheme(),
+        vi.fn(),
+        vi.fn(),
+      );
+
+      settings.handleInput(ENTER);
+      expect(opens).toBe(1);
+
+      entryDone?.(undefined, { navigateTo: "missing" });
+
+      // Matches pi-tui: the unknown id is a no-op, so the item that opened
+      // the submenu is activated again (its submenu re-opens).
+      expect(settings.hasActiveSubmenu()).toBe(true);
+      expect(opens).toBe(2);
+    });
   });
 
   describe("submenu shortcuts", () => {

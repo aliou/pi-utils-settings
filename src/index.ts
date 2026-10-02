@@ -38,6 +38,7 @@ export {
   type SettingsSection,
   type SettingsSubmenuComponent,
   type SettingsSubmenuContext,
+  type SubmenuDoneOptions,
 } from "./components/sectioned-settings";
 export {
   type SettingsDetailActionField,

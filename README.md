@@ -274,7 +274,7 @@ buildSections: (_tabConfig, _resolved, ctx) => [
 
 ### Submenu support
 
-Items can open submenus by providing a `submenu` factory. The factory receives the current value, a `done` callback, and a `{ requestRender, hideHint }` context so async submenus can trigger a redraw. Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):
+Items can open submenus by providing a `submenu` factory. The factory receives the current value, a `done` callback, and a `{ requestRender, hideHint }` context so async submenus can trigger a redraw. `done(value)` commits the value and closes the submenu, `done(undefined)` cancels, and `done(value, { navigateTo: itemId })` additionally jumps to another item after close (see below). Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):
 
 ```typescript
 import { ArrayEditor, setNestedValue } from "@aliou/pi-utils-settings";
@@ -376,6 +376,38 @@ async function loadPresets(): Promise<string[]> {
   },
 }
 ```
+
+#### Chained submenus with `navigateTo`
+
+`SectionedSettings` matches pi-tui's `SettingsList` submenu contract. The `done` callback takes an optional `SubmenuDoneOptions` object: calling `done(value, { navigateTo: "other.itemId" })` closes the submenu, moves the cursor to the item with that id, and auto-activates it — opening a submenu item's submenu, cycling a `values` item (firing `onChange`), or just selecting a plain item. Navigating to an unknown id falls back to re-activating the currently selected item, like pi-tui.
+
+```typescript
+import type { Component } from "@earendil-works/pi-tui";
+import type { SubmenuDoneOptions } from "@aliou/pi-utils-settings";
+
+{
+  id: "network.proxy",
+  label: "Proxy",
+  currentValue: "off",
+  submenu: (_val, done) => {
+    const confirm = (proxyUrl?: string, options?: SubmenuDoneOptions) =>
+      done(proxyUrl, options);
+
+    const editor: Component = {
+      render: () => ["Proxy editor \u2014 Enter: save, then continue with Port"],
+      handleInput: (data) => {
+        if (data === "\r") {
+          // Commit and jump to the "network.port" row, auto-opening its submenu.
+          confirm("http://localhost:8080", { navigateTo: "network.port" });
+        }
+      },
+    };
+    return editor;
+  },
+}
+```
+
+`SectionedSettings` also exposes `selectItem(id)`, which moves the cursor to the item with that id (a no-op when the id is unknown). Use it for programmatic navigation, e.g. after `updateSections()`.
 
 ### SectionedSettings vs SettingsDetailEditor
 
@@ -490,7 +522,7 @@ interface ConfigStore<TConfig, TResolved> {
 
 ### Components
 
-- **SectionedSettings**: Grouped settings list with search filtering and cursor preservation on update.
+- **SectionedSettings**: Grouped settings list with search filtering, cursor preservation on update, and pi-tui-parity submenu navigation (`done(value, { navigateTo })`, `selectItem(id)`).
 - **SettingsDetailEditor**: Focused second-level editor for one selected item (text, enum, boolean, nested submenu, destructive action).
 - **ArrayEditor**: String array editor with add/remove/reorder.
 - **PathArrayEditor**: Path-focused array editor with Tab completion in add/edit mode.

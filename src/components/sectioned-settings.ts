@@ -15,8 +15,10 @@ import {
  * Cursor skips section headers and only lands on items.
  *
  * Supports the same SettingItem interface as pi-tui's SettingsList,
- * including value cycling and submenus. Submenu factories also receive
- * a `{ requestRender }` context so async submenus can trigger redraws.
+ * including value cycling, submenus (with the `done(value, { navigateTo })`
+ * close contract), and `selectItem(id)`.
+ * Submenu factories also receive a `{ requestRender }` context so async
+ * submenus can trigger redraws.
  */
 
 /** Context passed to submenu factories so they can request a redraw or a save. */
@@ -43,11 +45,17 @@ export interface SettingsSubmenuComponent extends Component {
   getShortcuts?(): string | undefined;
 }
 
+/** Options a submenu can pass to `done` when closing, mirroring pi-tui's SettingsList. */
+export interface SubmenuDoneOptions {
+  /** Item id to select (and auto-activate) after the submenu closes. */
+  navigateTo?: string;
+}
+
 /** Setting item used by SectionedSettings, with a richer submenu contract. */
 export type SectionedSettingItem = Omit<SettingItem, "submenu"> & {
   submenu?: (
     currentValue: string,
-    done: (selectedValue?: string) => void,
+    done: (selectedValue?: string, options?: SubmenuDoneOptions) => void,
     ctx: SettingsSubmenuContext,
   ) => SettingsSubmenuComponent;
 };
@@ -110,6 +118,7 @@ export class SectionedSettings implements Component {
   private contentHeight: number;
   private submenuComponent: SettingsSubmenuComponent | null = null;
   private submenuItemIndex: number | null = null;
+  private navigateAfterClose: string | null = null;
 
   constructor(
     sections: SettingsSection[],
@@ -194,6 +203,15 @@ export class SectionedSettings implements Component {
         item.currentValue = newValue;
         return;
       }
+    }
+  }
+
+  /** Move selection to the item with the given id (no-op if not found). */
+  selectItem(id: string): void {
+    const items = this.getSelectableItems();
+    const index = items.findIndex((i) => i.id === id);
+    if (index !== -1) {
+      this.selectedIndex = index;
     }
   }
 
@@ -428,9 +446,12 @@ export class SectionedSettings implements Component {
       this.submenuItemIndex = this.selectedIndex;
       this.submenuComponent = item.submenu(
         item.currentValue,
-        (selectedValue) => {
+        (selectedValue, options) => {
           if (selectedValue !== undefined) {
             item.currentValue = selectedValue;
+          }
+          if (options?.navigateTo) {
+            this.navigateAfterClose = options.navigateTo;
           }
           this.closeSubmenu();
           if (selectedValue !== undefined) {
@@ -455,7 +476,16 @@ export class SectionedSettings implements Component {
 
   private closeSubmenu(): void {
     this.submenuComponent = null;
-    if (this.submenuItemIndex !== null) {
+    if (this.navigateAfterClose !== null) {
+      // Navigate to the requested item and auto-activate it (opens its
+      // submenu; a values item cycles instead; a plain item is selected),
+      // mirroring pi-tui's SettingsList.
+      const id = this.navigateAfterClose;
+      this.navigateAfterClose = null;
+      this.submenuItemIndex = null;
+      this.selectItem(id);
+      this.activateItem();
+    } else if (this.submenuItemIndex !== null) {
       this.selectedIndex = this.submenuItemIndex;
       this.submenuItemIndex = null;
     }

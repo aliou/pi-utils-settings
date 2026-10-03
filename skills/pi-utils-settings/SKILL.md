@@ -460,6 +460,7 @@ registerSettingsCommand(pi, {
   configStore,            // ConfigLoader or custom ConfigStore
   buildSections,          // (tabConfig, resolved, ctx) => SettingsSection[]
   extraTabs,              // optional: non-scope tabs (e.g. Examples, Help)
+  aliases,                // optional: extra commands opening the UI on a preselected tab
   onSettingChange,        // convert display strings to typed config values
   onBeforeClose,          // (isDirty) => boolean; return false to prevent closing
   onSave,                 // (ctx) => void; called after Ctrl+S saves; use to reload runtime
@@ -470,6 +471,7 @@ registerSettingsCommand(pi, {
 
 - `onSave(ctx)` is called after a successful save. Use it to reload runtime state.
 - `onBeforeClose(isDirty)` lets you prevent closing with unsaved drafts (return `false` to keep open).
+- `aliases` (`SettingsCommandAlias[]`) registers shortcut commands (e.g. `/my-ext:proxy`) that open the same UI on a preselected scope or extra tab; the main command also takes a tab argument with completions (`/my-ext:settings proxy`).
 
 ## ConfigStore Interface
 

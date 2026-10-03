@@ -20,10 +20,23 @@ import type { ConfigStore } from "./config/loader";
 import {
   ALL_SCOPE_IDS,
   type ExtraSettingsTab,
+  matchTabToken,
   type Scope,
   type ScopeSectionsBuilder,
+  type SettingsTab,
+  tabCompletions,
   toSettingsTabs,
 } from "./types";
+
+/** A shortcut command that opens the settings UI on a preselected tab. */
+export interface SettingsCommandAlias {
+  /** Full command name to register, e.g. "aperture:proxy". */
+  commandName: string;
+  /** Tab to open initially: a scope id or an extraTabs id. */
+  tabId: string;
+  /** Palette description. Default: `Open ${title} (${tabLabel})`. */
+  description?: string;
+}
 
 export interface SettingsCommandOptions<
   TConfig extends object,
@@ -53,6 +66,8 @@ export interface SettingsCommandOptions<
   buildSections: ScopeSectionsBuilder<TConfig, TResolved>;
   /** Optional extra tabs rendered after scope tabs. */
   extraTabs?: ExtraSettingsTab<TConfig, TResolved>[];
+  /** Optional alias commands that open the settings UI on a preselected tab. */
+  aliases?: SettingsCommandAlias[];
   /**
    * Custom change handler. Receives the setting ID, new display value,
    * and a clone of the current tab config. Return the updated config.
@@ -121,46 +136,105 @@ export function registerSettingsCommand<
     seenExtraIds.add(tab.id);
   }
 
+  const staticTabs: SettingsTab[] = toSettingsTabs(ALL_SCOPE_IDS, extraTabs);
+  const staticTabLabels = new Map(staticTabs.map((tab) => [tab.id, tab.label]));
+
+  const aliases = options.aliases ?? [];
+  const seenAliasNames = new Set<string>();
+  for (const alias of aliases) {
+    if (alias.commandName === commandName) {
+      throw new Error(
+        `[settings] Alias commandName "${alias.commandName}" collides with the main command name`,
+      );
+    }
+    if (seenAliasNames.has(alias.commandName)) {
+      throw new Error(
+        `[settings] Duplicate alias commandName "${alias.commandName}"`,
+      );
+    }
+    seenAliasNames.add(alias.commandName);
+    if (!staticTabLabels.has(alias.tabId)) {
+      throw new Error(
+        `[settings] Alias "${alias.commandName}" references unknown tab "${alias.tabId}"`,
+      );
+    }
+  }
+
+  async function openSettings(
+    args: string,
+    ctx: ExtensionCommandContext,
+    initialTabId?: string,
+  ): Promise<void> {
+    if (!ctx.hasUI) return;
+
+    const enabledScopes = configStore.getEnabledScopes();
+    const tabs = toSettingsTabs(enabledScopes, extraTabs);
+    if (tabs.length === 0) {
+      ctx.ui.notify("No tabs configured", "error");
+      return;
+    }
+
+    let requestedTabId = initialTabId;
+    if (requestedTabId === undefined) {
+      const token = args.trim().split(/\s+/)[0] ?? "";
+      if (token) {
+        const matched = matchTabToken(token, staticTabs);
+        if (matched) {
+          requestedTabId = matched.id;
+        } else {
+          ctx.ui.notify(`Unknown tab '${token}'`, "warning");
+        }
+      }
+    }
+
+    const registeredTabIds = new Set(tabs.map((tab) => tab.id));
+    const activeTabId =
+      (requestedTabId !== undefined && registeredTabIds.has(requestedTabId)
+        ? requestedTabId
+        : undefined) ??
+      enabledScopes.find((s) => configStore.hasConfig(s)) ??
+      enabledScopes[0] ??
+      tabs[0]?.id ??
+      "";
+
+    await ctx.ui.custom(
+      (tui, theme, _kb, done) =>
+        new SettingsPanel({
+          title,
+          extensionLabel,
+          configStore,
+          buildSections,
+          onSettingChange,
+          onBeforeClose,
+          onSave,
+          contentHeight,
+          extraTabs,
+          enabledScopes,
+          tabs,
+          activeTabId,
+          ctx,
+          tui,
+          theme,
+          onClose: () => done(undefined),
+        }),
+    );
+  }
+
   pi.registerCommand(commandName, {
     description,
-    handler: async (_args, ctx) => {
-      if (!ctx.hasUI) return;
-
-      const enabledScopes = configStore.getEnabledScopes();
-      const tabs = toSettingsTabs(enabledScopes, extraTabs);
-      if (tabs.length === 0) {
-        ctx.ui.notify("No tabs configured", "error");
-        return;
-      }
-
-      // Default to first scope with existing config, else first scope, else first tab.
-      const activeTabId =
-        enabledScopes.find((s) => configStore.hasConfig(s)) ??
-        enabledScopes[0] ??
-        tabs[0]?.id ??
-        "";
-
-      await ctx.ui.custom(
-        (tui, theme, _kb, done) =>
-          new SettingsPanel({
-            title,
-            extensionLabel,
-            configStore,
-            buildSections,
-            onSettingChange,
-            onBeforeClose,
-            onSave,
-            contentHeight,
-            extraTabs,
-            enabledScopes,
-            tabs,
-            activeTabId,
-            ctx,
-            tui,
-            theme,
-            onClose: () => done(undefined),
-          }),
-      );
-    },
+    getArgumentCompletions: (argumentPrefix) =>
+      tabCompletions(
+        toSettingsTabs(configStore.getEnabledScopes(), extraTabs),
+        argumentPrefix,
+      ),
+    handler: (args, ctx) => openSettings(args, ctx),
   });
+
+  for (const alias of aliases) {
+    const tabLabel = staticTabLabels.get(alias.tabId) ?? alias.tabId;
+    pi.registerCommand(alias.commandName, {
+      description: alias.description ?? `Open ${title} (${tabLabel})`,
+      handler: (_args, ctx) => openSettings("", ctx, alias.tabId),
+    });
+  }
 }

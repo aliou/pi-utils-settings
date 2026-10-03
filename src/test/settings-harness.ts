@@ -18,6 +18,7 @@ export interface PanelComponent {
 
 export interface RegisteredCommand {
   description?: string;
+  getArgumentCompletions?: (argumentPrefix: string) => unknown;
   handler: (args: string, ctx: unknown) => Promise<void>;
 }
 

@@ -4,6 +4,7 @@
  * panel component.
  */
 
+import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { SettingsSection } from "./components/sectioned-settings";
 import type { SettingsTheme } from "./theme";
 
@@ -50,6 +51,39 @@ export function toSettingsTabs(
       label: tab.label,
     })),
   ];
+}
+
+/** Match a token against tab ids first, then labels (case-insensitive). */
+export function matchTabToken(
+  token: string,
+  tabs: SettingsTab[],
+): SettingsTab | undefined {
+  const lowered = token.toLowerCase();
+  return (
+    tabs.find((tab) => tab.id.toLowerCase() === lowered) ??
+    tabs.find((tab) => tab.label.toLowerCase() === lowered)
+  );
+}
+
+/** One autocomplete item per tab, filtered by prefix (ids and labels). */
+export function tabCompletions(
+  tabs: SettingsTab[],
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  const items: AutocompleteItem[] = tabs.map((tab) => ({
+    value: tab.id,
+    label: tab.label,
+    description: "Open settings on this tab",
+  }));
+  const prefix = argumentPrefix.toLowerCase();
+  const filtered = prefix
+    ? items.filter(
+        (item) =>
+          item.value.toLowerCase().startsWith(prefix) ||
+          item.label.toLowerCase().startsWith(prefix),
+      )
+    : items;
+  return filtered.length > 0 ? filtered : null;
 }
 
 export interface ScopeSectionsContext<TConfig extends object> {

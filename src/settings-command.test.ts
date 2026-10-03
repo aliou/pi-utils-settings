@@ -17,6 +17,38 @@ import { defaultChangeHandler } from "./components/settings-panel";
 import { CTRL_S, DOWN, ENTER, ESC, TAB } from "./test/keys";
 import { countOccurrences } from "./test/render";
 import { makeSettingsHarness, type TestConfig } from "./test/settings-harness";
+import type { ExtraSettingsTab } from "./types";
+
+function proxyExtraTab(): ExtraSettingsTab<TestConfig, TestConfig> {
+  return {
+    id: "proxy",
+    label: "Network",
+    buildSections: () => [
+      {
+        label: "Network",
+        items: [
+          {
+            id: "proxy.mode",
+            label: "Proxy mode",
+            currentValue: "off",
+            values: ["off", "on"],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function expectRegistrationError(
+  overrides: Parameters<typeof makeSettingsHarness>[0],
+): Error {
+  const harness = makeSettingsHarness(overrides);
+  expect(harness.registrationError).toBeInstanceOf(Error);
+  const error = harness.registrationError as Error;
+  expect(error.message).toContain("[settings]");
+  expect(harness.registerCommand).not.toHaveBeenCalled();
+  return error;
+}
 
 describe("registerSettingsCommand", () => {
   it("does not open the UI when the context has no UI", async () => {
@@ -286,6 +318,213 @@ describe("registerSettingsCommand", () => {
     expect(harness.configStore.save).toHaveBeenCalledWith("global", {
       feature: "on",
     });
+  });
+});
+
+describe("command aliases and tab args", () => {
+  it("registers the main command plus one command per alias", () => {
+    const harness = makeSettingsHarness({
+      aliases: [
+        { commandName: "test:proxy", tabId: "proxy" },
+        {
+          commandName: "test:advanced",
+          tabId: "advanced",
+          description: "Open advanced settings",
+        },
+        { commandName: "test:memory", tabId: "memory" },
+      ],
+      extraTabs: [
+        { id: "proxy", label: "Network", buildSections: () => [] },
+        { id: "advanced", label: "Advanced", buildSections: () => [] },
+      ],
+    });
+
+    expect([...harness.commands.keys()]).toEqual([
+      "test:settings",
+      "test:proxy",
+      "test:advanced",
+      "test:memory",
+    ]);
+    expect(harness.commands.get("test:settings")?.description).toBe(
+      "Configure test settings",
+    );
+    expect(harness.commands.get("test:proxy")?.description).toBe(
+      "Open Test Settings (Network)",
+    );
+    expect(harness.commands.get("test:memory")?.description).toBe(
+      "Open Test Settings (Memory)",
+    );
+    expect(harness.commands.get("test:advanced")?.description).toBe(
+      "Open advanced settings",
+    );
+  });
+
+  it("rejects an alias with an unknown tabId and registers nothing", () => {
+    const error = expectRegistrationError({
+      aliases: [{ commandName: "test:nope", tabId: "nope" }],
+    });
+    expect(error.message).toContain('unknown tab "nope"');
+  });
+
+  it("rejects duplicate alias commandNames and registers nothing", () => {
+    const error = expectRegistrationError({
+      aliases: [
+        { commandName: "test:proxy", tabId: "proxy" },
+        { commandName: "test:proxy", tabId: "advanced" },
+      ],
+      extraTabs: [
+        { id: "proxy", label: "Network", buildSections: () => [] },
+        { id: "advanced", label: "Advanced", buildSections: () => [] },
+      ],
+    });
+    expect(error.message).toContain('Duplicate alias commandName "test:proxy"');
+  });
+
+  it("rejects an alias equal to the main command name", () => {
+    const error = expectRegistrationError({
+      aliases: [{ commandName: "test:settings", tabId: "global" }],
+    });
+    expect(error.message).toContain("collides with the main command name");
+  });
+
+  it("opens the UI on the alias's preselected tab and ignores args", async () => {
+    const harness = makeSettingsHarness({
+      aliases: [{ commandName: "test:proxy", tabId: "proxy" }],
+      extraTabs: [proxyExtraTab()],
+    });
+
+    const component = await harness.openCommand("test:proxy");
+    const output = component!.render(80).join("\n");
+    expect(output).toContain("Proxy mode");
+    expect(output).not.toContain("Feature");
+
+    const withArgs = await harness.openCommand("test:proxy", "ignored args");
+    expect(withArgs!.render(80).join("\n")).toContain("Proxy mode");
+  });
+
+  it("opens the UI on the alias's scope tab", async () => {
+    const harness = makeSettingsHarness(
+      {
+        aliases: [{ commandName: "test:memory", tabId: "memory" }],
+        buildSections: (tabConfig, _resolved, ctx) => [
+          {
+            label: "General",
+            items: [
+              {
+                id: "feature",
+                label: `Feature (${ctx.scope})`,
+                currentValue: tabConfig?.feature ?? "off",
+                values: ["off", "on"],
+              },
+            ],
+          },
+        ],
+      },
+      { scopes: ["global", "memory"] },
+    );
+
+    const component = await harness.openCommand("test:memory");
+    const output = component!.render(80).join("\n");
+    expect(output).toContain("Feature (memory)");
+    expect(output).not.toContain("Feature (global)");
+  });
+
+  it("falls back to the default tab when an alias targets a disabled scope", async () => {
+    const harness = makeSettingsHarness({
+      aliases: [{ commandName: "test:memory", tabId: "memory" }],
+    });
+
+    const component = await harness.openCommand("test:memory");
+    expect(component!.render(80).join("\n")).toContain("Feature");
+    expect(harness.notify).not.toHaveBeenCalled();
+  });
+
+  it("preselects the tab matching the first args token", async () => {
+    const harness = makeSettingsHarness({
+      extraTabs: [proxyExtraTab()],
+    });
+
+    const byId = await harness.open("proxy");
+    expect(byId.render(80).join("\n")).toContain("Proxy mode");
+
+    const byIdCase = await harness.open("Proxy");
+    expect(byIdCase.render(80).join("\n")).toContain("Proxy mode");
+
+    const byLabel = await harness.open("Network");
+    expect(byLabel.render(80).join("\n")).toContain("Proxy mode");
+    const byLabelCase = await harness.open("network");
+    expect(byLabelCase.render(80).join("\n")).toContain("Proxy mode");
+
+    const firstToken = await harness.open("proxy extra");
+    expect(firstToken.render(80).join("\n")).toContain("Proxy mode");
+  });
+
+  it("warns on an unknown tab token and opens the default tab", async () => {
+    const harness = makeSettingsHarness({
+      extraTabs: [proxyExtraTab()],
+    });
+
+    const component = await harness.open("bogus");
+    expect(harness.notify).toHaveBeenCalledWith(
+      "Unknown tab 'bogus'",
+      "warning",
+    );
+    expect(component.render(80).join("\n")).toContain("Feature");
+  });
+
+  it("falls back silently for a valid but disabled scope token", async () => {
+    const harness = makeSettingsHarness({
+      extraTabs: [proxyExtraTab()],
+    });
+
+    const component = await harness.open("memory");
+    expect(harness.notify).not.toHaveBeenCalled();
+    expect(component.render(80).join("\n")).toContain("Feature");
+  });
+
+  it("opens the default tab for empty or whitespace args", async () => {
+    const harness = makeSettingsHarness({
+      extraTabs: [proxyExtraTab()],
+    });
+
+    for (const args of ["", "   "]) {
+      const component = await harness.open(args);
+      expect(component.render(80).join("\n")).toContain("Feature");
+      expect(harness.notify).not.toHaveBeenCalled();
+    }
+  });
+
+  it("registers argument completions on the main command only", () => {
+    const harness = makeSettingsHarness({
+      aliases: [{ commandName: "test:proxy", tabId: "proxy" }],
+      extraTabs: [proxyExtraTab()],
+    });
+
+    const main = harness.commands.get("test:settings");
+    expect(typeof main?.getArgumentCompletions).toBe("function");
+
+    const proxyItem = {
+      value: "proxy",
+      label: "Network",
+      description: "Open settings on this tab",
+    };
+    expect(main?.getArgumentCompletions?.("")).toEqual([
+      {
+        value: "global",
+        label: "Global",
+        description: "Open settings on this tab",
+      },
+      proxyItem,
+    ]);
+
+    expect(main?.getArgumentCompletions?.("PRO")).toEqual([proxyItem]);
+    expect(main?.getArgumentCompletions?.("net")).toEqual([proxyItem]);
+
+    expect(main?.getArgumentCompletions?.("zzz")).toBeNull();
+
+    expect(
+      harness.commands.get("test:proxy")?.getArgumentCompletions,
+    ).toBeUndefined();
   });
 });
 

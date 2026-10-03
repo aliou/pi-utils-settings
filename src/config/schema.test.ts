@@ -11,7 +11,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
 }));
 
 // Import after mock setup
-import { ConfigLoader } from "./config-loader";
+import { ConfigLoader } from "./loader";
 
 describe("buildSchemaUrl", () => {
   it("builds default URL with schema.json", () => {

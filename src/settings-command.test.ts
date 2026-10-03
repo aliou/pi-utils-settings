@@ -13,137 +13,10 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
 import { describe, expect, it, vi } from "vitest";
 import { ArrayEditor } from "./components/array-editor";
 import { SettingsDetailEditor } from "./components/settings-detail-editor";
-import type { Scope } from "./config-loader";
-import {
-  defaultChangeHandler,
-  registerSettingsCommand,
-  type SettingsCommandOptions,
-} from "./settings-command";
+import { defaultChangeHandler } from "./components/settings-panel";
 import { CTRL_S, DOWN, ENTER, ESC, TAB } from "./test/keys";
 import { countOccurrences } from "./test/render";
-
-interface TestConfig {
-  feature?: string;
-  nested?: { value?: string };
-}
-
-interface PanelComponent {
-  render: (width: number) => string[];
-  handleInput?: (data: string) => void;
-  invalidate?: () => void;
-}
-
-interface RegisteredCommand {
-  description?: string;
-  handler: (args: string, ctx: unknown) => Promise<void>;
-}
-
-function makeSettingsHarness(
-  overrides: Partial<SettingsCommandOptions<TestConfig, TestConfig>> = {},
-  settings: { scopes?: Scope[]; withConfig?: Scope[] } = {},
-) {
-  const commands = new Map<string, RegisteredCommand>();
-  let component: PanelComponent | undefined;
-  const done = vi.fn();
-  const notify = vi.fn();
-  const requestRender = vi.fn();
-
-  const pi = {
-    registerCommand: vi.fn((name: string, command: RegisteredCommand) => {
-      commands.set(name, command);
-    }),
-  };
-
-  const enabledScopes = settings.scopes ?? ["global"];
-  const withConfig = new Set(settings.withConfig ?? ["global"]);
-  const configStore = {
-    getEnabledScopes: () => [...enabledScopes],
-    hasConfig: (scope: Scope) => withConfig.has(scope),
-    getRawConfig: () => ({ feature: "off" }),
-    getConfig: () => ({ feature: "off" }),
-    save: vi.fn(),
-  };
-
-  const options: SettingsCommandOptions<TestConfig, TestConfig> = {
-    commandName: "test:settings",
-    title: "Test Settings",
-    configStore: configStore as never,
-    buildSections: (tabConfig) => [
-      {
-        label: "General",
-        items: [
-          {
-            id: "feature",
-            label: "Feature",
-            currentValue: tabConfig?.feature ?? "off",
-            values: ["off", "on"],
-          },
-        ],
-      },
-    ],
-    ...overrides,
-  };
-
-  const theme = {
-    fg: (_color: string, text: string) => text,
-    bg: (_color: string, text: string) => text,
-    bold: (text: string) => text,
-  };
-  const ctx = {
-    hasUI: true,
-    ui: {
-      notify,
-      custom: vi.fn((factory: (...args: unknown[]) => unknown) => {
-        component = factory(
-          { requestRender },
-          theme,
-          undefined,
-          done,
-        ) as PanelComponent;
-      }),
-    },
-  };
-
-  const invoke = async (
-    name: string,
-    args = "",
-  ): Promise<PanelComponent | undefined> => {
-    const command = commands.get(name);
-    if (!command) {
-      throw new Error(`command "${name}" is not registered`);
-    }
-    await command.handler(args, ctx);
-    return component;
-  };
-
-  let registrationError: unknown;
-  try {
-    registerSettingsCommand(pi as never, options);
-  } catch (error) {
-    // Keep the harness around so tests can assert registration failures.
-    registrationError = error;
-  }
-
-  return {
-    options,
-    commands,
-    registerCommand: pi.registerCommand,
-    configStore,
-    done,
-    notify,
-    requestRender,
-    ctx,
-    registrationError,
-    async open(args = "") {
-      const opened = await invoke(options.commandName, args);
-      if (!opened) throw new Error("settings component was not created");
-      return opened;
-    },
-    openCommand(name: string, args = "") {
-      return invoke(name, args);
-    },
-  };
-}
+import { makeSettingsHarness, type TestConfig } from "./test/settings-harness";
 
 describe("registerSettingsCommand", () => {
   it("does not open the UI when the context has no UI", async () => {
@@ -401,11 +274,10 @@ describe("registerSettingsCommand", () => {
     });
     const component = await harness.open();
 
-    // Make a draft change, then open the submenu.
     component.handleInput?.(ENTER);
     component.handleInput?.("j");
     component.handleInput?.(ENTER);
-    expect(submenuInput).toBeUndefined(); // sanity: submenu is open, input captured
+    expect(submenuInput).toBeUndefined();
 
     // Ctrl+S from inside the submenu saves the draft.
     component.handleInput?.(CTRL_S);
@@ -479,13 +351,9 @@ describe("unified shortcut line", () => {
     component.handleInput?.(DOWN);
     component.handleInput?.(ENTER);
 
-    // registerSettingsCommand hides its own hint, which the submenu factory
-    // context forwards so the editor can suppress its own footer.
     expect(getHideHint()).toBe(true);
 
     const output = component.render(80).join("\n");
-    // The submenu's shortcuts appear exactly once: in the panel controls
-    // line below the separator, not in the editor's own footer.
     expect(countOccurrences(output, LIST_SHORTCUTS)).toBe(1);
     expect(output).not.toContain("Enter/Space change");
     expect(output).not.toContain("Esc close");
@@ -496,8 +364,8 @@ describe("unified shortcut line", () => {
     const component = await harness.open();
 
     component.handleInput?.(DOWN);
-    component.handleInput?.(ENTER); // open the detail editor
-    component.handleInput?.(ENTER); // open the text field editor
+    component.handleInput?.(ENTER);
+    component.handleInput?.(ENTER);
 
     const output = component.render(80).join("\n");
     expect(countOccurrences(output, "Enter: confirm · Esc: cancel")).toBe(1);
@@ -510,18 +378,18 @@ describe("unified shortcut line", () => {
     const component = await harness.open();
 
     component.handleInput?.(DOWN);
-    component.handleInput?.(ENTER); // open the detail editor
-    component.handleInput?.(ENTER); // open the text field editor
+    component.handleInput?.(ENTER);
+    component.handleInput?.(ENTER);
 
-    component.handleInput?.(ESC); // cancel editing, back to editor list
+    component.handleInput?.(ESC);
     expect(harness.done).not.toHaveBeenCalled();
     expect(component.render(80).join("\n")).toContain(LIST_SHORTCUTS);
 
-    component.handleInput?.(ESC); // back out of the submenu
+    component.handleInput?.(ESC);
     expect(harness.done).not.toHaveBeenCalled();
     expect(component.render(80).join("\n")).toContain("Esc close");
 
-    component.handleInput?.(ESC); // now Esc closes the panel
+    component.handleInput?.(ESC);
     expect(harness.done).toHaveBeenCalledWith(undefined);
   });
 
@@ -582,11 +450,8 @@ describe("unified shortcut line", () => {
 
     const heightWithoutSubmenu = component.render(80).length;
 
-    component.handleInput?.(ENTER); // open the array editor submenu
+    component.handleInput?.(ENTER);
 
-    // List mode: the editor's shortcuts appear exactly once — in the
-    // panel controls line, not in an editor footer — and the panel
-    // height stays fixed at contentHeight.
     let output = component.render(80).join("\n");
     expect(
       countOccurrences(
@@ -597,7 +462,7 @@ describe("unified shortcut line", () => {
     expect(output).not.toContain("Enter/Space change");
     expect(component.render(80).length).toBe(heightWithoutSubmenu);
 
-    component.handleInput?.("a"); // add mode
+    component.handleInput?.("a");
 
     output = component.render(80).join("\n");
     expect(countOccurrences(output, "Enter: confirm · Esc: cancel")).toBe(1);
@@ -616,7 +481,7 @@ describe("unified shortcut line", () => {
     component.handleInput?.(ENTER);
     const heightWithSubmenu = component.render(80).length;
 
-    component.handleInput?.(ENTER); // text-editing mode
+    component.handleInput?.(ENTER);
     const heightWhileEditing = component.render(80).length;
 
     expect(heightWithSubmenu).toBe(heightWithoutSubmenu);

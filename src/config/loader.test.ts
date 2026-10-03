@@ -12,7 +12,7 @@ import {
   ConfigLoader,
   createConfigStore,
   type MigrationContext,
-} from "./config-loader";
+} from "./loader";
 
 // --- Test types ---
 
@@ -82,7 +82,6 @@ describe("ConfigLoader migration messages", () => {
     currentTestDir = testDir;
     const path = addGlobalConfig(configName, {} as TestConfig);
     writeFileSync(path, "{ not json", "utf-8");
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const loader = new ConfigLoader<TestConfig, TestResolved>(
       configName,
@@ -92,10 +91,9 @@ describe("ConfigLoader migration messages", () => {
     await loader.load();
 
     expect(loader.getRawConfig("global")).toBeNull();
-    expect(errorSpy).toHaveBeenCalledWith(
+    expect(loader.drainMessages()).toEqual([
       expect.stringContaining("[settings] Failed to parse config"),
-    );
-    errorSpy.mockRestore();
+    ]);
   });
 
   test("queues a static message when migration runs", async ({
@@ -200,7 +198,7 @@ describe("ConfigLoader migration messages", () => {
     expect(loader.drainMessages()).toHaveLength(0);
   });
 
-  test("does not queue message when migration fails", async ({
+  test("queues a failure message when migration fails", async ({
     testDir,
     addGlobalConfig,
   }) => {
@@ -227,7 +225,12 @@ describe("ConfigLoader migration messages", () => {
 
     await loader.load();
 
-    expect(loader.drainMessages()).toHaveLength(0);
+    // The failure surfaces through the drain channel, not the success message.
+    expect(loader.drainMessages()).toEqual([
+      expect.stringContaining(
+        '[settings] Migration "failing-migration" failed',
+      ),
+    ]);
   });
 
   test("does not queue message when shouldRun returns false", async ({
@@ -341,7 +344,7 @@ describe("ConfigLoader migration messages", () => {
     expect(messages[0]).toBe('Changed foo from "before-run" to "after-run"');
   });
 
-  test("gracefully handles message factory that throws", async ({
+  test("queues a failure message when the message factory throws", async ({
     testDir,
     addGlobalConfig,
   }) => {
@@ -368,9 +371,13 @@ describe("ConfigLoader migration messages", () => {
 
     await loader.load();
 
-    // Migration still succeeded, message just not queued
+    // Migration still succeeded; the broken factory surfaces as a message.
     expect(loader.getConfig().foo).toBe("migrated");
-    expect(loader.drainMessages()).toHaveLength(0);
+    expect(loader.drainMessages()).toEqual([
+      expect.stringContaining(
+        '[settings] Failed to build migration message "bad-message-factory"',
+      ),
+    ]);
   });
 
   test("migration without message field works as before", async ({

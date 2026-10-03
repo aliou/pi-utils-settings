@@ -16,6 +16,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import type { Scope } from "../types";
 import {
   compareVersions,
   isSemverString,
@@ -23,15 +24,7 @@ import {
   stampVersion,
   type VersionScheme,
   zeroVersion,
-} from "./config-version";
-
-/**
- * Available configuration scopes.
- * - global: User-wide settings in ~/.pi/agent/extensions/
- * - local: Project-specific settings in {project}/.pi/extensions/
- * - memory: Ephemeral settings, not persisted, reset on reload
- */
-export type Scope = "global" | "local" | "memory";
+} from "./version";
 
 /**
  * Context passed to migration hooks.
@@ -158,7 +151,6 @@ function findLocalConfigPath(extensionName: string): string | null {
     }
 
     const parent = resolve(dir, "..");
-    // Stop if we can't go higher
     if (parent === dir) break;
     dir = parent;
   }
@@ -293,7 +285,6 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
    * Note: Memory config is reset to null on reload (ephemeral).
    */
   async load(): Promise<void> {
-    // Load from disk
     this.globalConfig = this.globalPath
       ? await this.readFile(this.globalPath)
       : null;
@@ -301,10 +292,8 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
       ? await this.readFile(this.localPath)
       : null;
 
-    // Reset memory on reload (ephemeral)
     this.memoryConfig = null;
 
-    // Apply migrations to disk configs
     if (this.globalConfig && this.globalPath) {
       this.globalConfig = await this.applyMigrations(
         this.globalConfig,
@@ -352,7 +341,11 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     return [...this.scopes];
   }
 
-  /** Drain (remove and return) all pending migration messages. */
+  /**
+   * Drain (remove and return) all pending messages: migration notices and
+   * config problems (e.g. corrupt JSON). Drain on session_start and show
+   * them via ctx.ui.notify with the fresh context.
+   */
   drainMessages(): string[] {
     return this.pendingMessages.splice(0);
   }
@@ -424,8 +417,6 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     this.resolved = this.merge();
   }
 
-  // --- Internal ---
-
   private async applyMigrations(
     config: TConfig,
     filePath: string,
@@ -482,7 +473,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
           this.pendingMessages.push(message);
         }
       } catch (error) {
-        console.error(
+        this.pendingMessages.push(
           `[settings] Migration "${migration.name}" failed for ${filePath}: ${error}`,
         );
         // Stop after a failed versioned migration: continuing would let a
@@ -496,7 +487,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
       try {
         await this.writeFile(filePath, current);
       } catch (err) {
-        console.error(
+        this.pendingMessages.push(
           `[settings] Failed to save migrated config to ${filePath}: ${err}`,
         );
       }
@@ -519,7 +510,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
         ? migration.message(before, after, filePath, ctx)
         : migration.message;
     } catch (error) {
-      console.error(
+      this.pendingMessages.push(
         `[settings] Failed to build migration message "${migration.name}" for ${filePath}: ${error}`,
       );
       return undefined;
@@ -568,7 +559,7 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     try {
       content = await readFile(path, "utf-8");
     } catch {
-      return null; // Missing or unreadable file = no config.
+      return null;
     }
     try {
       const parsed = JSON.parse(content);
@@ -576,8 +567,11 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
       const { $schema: _, ...rest } = parsed;
       return rest as TConfig;
     } catch (error) {
-      // A corrupt config silently behaves like no config otherwise.
-      console.error(`[settings] Failed to parse config ${path}: ${error}`);
+      // A corrupt config behaves like a missing one, but the extension can
+      // surface the problem via drainMessages() instead of a silent reset.
+      this.pendingMessages.push(
+        `[settings] Failed to parse config ${path}: ${error}`,
+      );
       return null;
     }
   }

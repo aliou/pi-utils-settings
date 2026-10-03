@@ -7,7 +7,7 @@
  * `version` properties so consumers don't need them on their config type.
  */
 
-import { generateSettingsSchema } from "../src/schema-gen.mjs";
+import { generateSettingsSchema } from "../src/config/schema-gen.mjs";
 
 const USAGE = `Usage: pi-settings-schema -p <file> -t <type> -o <file> [options]
 

@@ -77,6 +77,7 @@ export {
 export { getNestedValue, setNestedValue } from "./helpers";
 export {
   registerSettingsCommand,
+  type SettingsCommandAlias,
   type SettingsCommandOptions,
 } from "./settings-command";
 export { getSettingsTheme, type SettingsTheme } from "./theme";

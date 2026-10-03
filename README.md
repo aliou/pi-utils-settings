@@ -272,6 +272,45 @@ buildSections: (_tabConfig, _resolved, ctx) => [
 ];
 ```
 
+#### Command aliases
+
+Pi has no command-alias mechanism, so `aliases` registers each entry as a second full command that opens the same settings UI with one tab preselected. Aliases ignore their arguments.
+
+```typescript
+import {
+  registerSettingsCommand,
+  type ExtraSettingsTab,
+  type SettingsCommandAlias,
+} from "@aliou/pi-utils-settings";
+
+const aliases: SettingsCommandAlias[] = [
+  // Opens the settings UI on the "proxy" extra tab below: /my-ext:proxy
+  { commandName: "my-ext:proxy", tabId: "proxy" },
+  // Scope tabs work too. The palette description defaults to
+  // `Open ${title} (${tabLabel})`, e.g. "Open My Extension Settings (Memory)":
+  { commandName: "my-ext:memory", tabId: "memory" },
+  // Optional explicit description:
+  { commandName: "my-ext:setup", tabId: "global", description: "Open the setup tab" },
+];
+
+const extraTabs: ExtraSettingsTab<MyConfig, ResolvedConfig>[] = [
+  { id: "proxy", label: "Proxy", buildSections: () => [/* ... */] },
+];
+
+registerSettingsCommand<MyConfig, ResolvedConfig>(pi, {
+  commandName: "my-ext:settings",
+  title: "My Extension Settings",
+  configStore: configLoader,
+  extraTabs,
+  aliases,
+  buildSections: (tabConfig, resolved, { setDraft, theme }) => [/* ... */],
+});
+```
+
+`tabId` must be a scope id (`global`/`local`/`memory`) or an `extraTabs` id. Registration is validated up front: duplicate alias command names, an alias equal to the main command name, or an unknown `tabId` throw (with a `[settings]`-prefixed message) before any command is registered. A valid-but-disabled scope degrades silently to the default tab instead of erroring.
+
+The main command also accepts a tab argument: `/my-ext:settings proxy` preselects the tab. The first whitespace-delimited token is matched case-insensitively against tab ids first, then tab labels; an unknown token shows a warning and opens the default tab, and empty args keep the existing default behavior. The main command registers `getArgumentCompletions`, returning one `AutocompleteItem` per currently registered tab (enabled scopes plus extra tabs) filtered by the typed prefix — `value` is the tab id, `label` the tab label. Aliases get no completions.
+
 ### Submenu support
 
 Items can open submenus by providing a `submenu` factory. The factory receives the current value, a `done` callback, and a `{ requestRender, hideHint }` context so async submenus can trigger a redraw. `done(value)` commits the value and closes the submenu, `done(undefined)` cancels, and `done(value, { navigateTo: itemId })` additionally jumps to another item after close (see below). Use `setDraft` inside submenu `onSave` to keep changes in the draft (same save model as simple values):

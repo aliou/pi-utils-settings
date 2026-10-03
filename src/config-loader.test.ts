@@ -75,6 +75,29 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
 describe("ConfigLoader migration messages", () => {
   const configName = "pi-utils-settings-test-msgs";
 
+  test("warns and treats a corrupt config as missing", async ({
+    testDir,
+    addGlobalConfig,
+  }) => {
+    currentTestDir = testDir;
+    const path = addGlobalConfig(configName, {} as TestConfig);
+    writeFileSync(path, "{ not json", "utf-8");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const loader = new ConfigLoader<TestConfig, TestResolved>(
+      configName,
+      DEFAULTS,
+      { scopes: ["global"] },
+    );
+    await loader.load();
+
+    expect(loader.getRawConfig("global")).toBeNull();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[settings] Failed to parse config"),
+    );
+    errorSpy.mockRestore();
+  });
+
   test("queues a static message when migration runs", async ({
     testDir,
     addGlobalConfig,

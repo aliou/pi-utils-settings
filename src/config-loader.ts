@@ -16,6 +16,14 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import {
+  compareVersions,
+  isSemverString,
+  readVersion,
+  stampVersion,
+  type VersionScheme,
+  zeroVersion,
+} from "./config-version";
 
 /**
  * Available configuration scopes.
@@ -121,12 +129,6 @@ export interface ConfigStore<TConfig extends object, TResolved extends object> {
 }
 
 /**
- * Version scheme used by a loader's versioned migrations.
- * All versioned migrations in one loader must share the same scheme.
- */
-type VersionScheme = "number" | "semver";
-
-/**
  * Helper for config types used with versioned migrations.
  * The loader stamps a `version` field whose type matches the loader's
  * version scheme: number for integer migrations, string for semver.
@@ -135,84 +137,6 @@ type VersionScheme = "number" | "semver";
  */
 export interface VersionedConfig {
   version?: number | string;
-}
-
-/** Semver core without prerelease/build metadata; minor/patch may be omitted. */
-const SEMVER_PATTERN = /^(\d{1,15})(?:\.(\d{1,15}))?(?:\.(\d{1,15}))?$/;
-
-function isSemverString(value: string): boolean {
-  return SEMVER_PATTERN.test(value);
-}
-
-/**
- * Parse a semver string into [major, minor, patch].
- * Missing minor/patch default to 0, so "1.2" reads as 1.2.0.
- * Returns null when the value is not a plain semver core.
- */
-function parseSemver(value: string): [number, number, number] | null {
-  const match = SEMVER_PATTERN.exec(value.trim());
-  if (!match) return null;
-  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
-}
-
-/** Compare two semver strings. Returns negative, 0, or positive. */
-function compareSemver(a: string, b: string): number {
-  const pa: [number, number, number] = parseSemver(a) ?? [0, 0, 0];
-  const pb: [number, number, number] = parseSemver(b) ?? [0, 0, 0];
-  for (const i of [0, 1, 2] as const) {
-    if (pa[i] !== pb[i]) return pa[i] - pb[i];
-  }
-  return 0;
-}
-
-/**
- * Compare two versions of the same scheme.
- * Returns negative, 0, or positive.
- */
-function compareVersions(
-  a: number | string,
-  b: number | string,
-  scheme: VersionScheme,
-): number {
-  if (scheme === "semver") return compareSemver(String(a), String(b));
-  return Number(a) - Number(b);
-}
-
-/** The version treated as "unset" for a scheme. */
-function zeroVersion(scheme: VersionScheme): number | string {
-  return scheme === "semver" ? "0.0.0" : 0;
-}
-
-/**
- * Read the stamped config version from a raw config object.
- * Numeric scheme: returns 0 when unset or not a finite number.
- * Semver scheme: returns "0.0.0" when unset or unparseable; a bare
- * legacy integer stamp (e.g. 3) reads as its semver form (3.0.0).
- */
-function readVersion(
-  config: object,
-  scheme: VersionScheme = "number",
-): number | string {
-  const value = (config as Record<string, unknown>).version;
-  if (scheme === "semver") {
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (isSemverString(trimmed)) return trimmed;
-    } else if (typeof value === "number" && Number.isSafeInteger(value)) {
-      return String(value);
-    }
-    return "0.0.0";
-  }
-  const version = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(version) ? version : 0;
-}
-
-/** Return a copy of the config with the version field stamped. */
-function stampVersion<TConfig>(
-  config: TConfig,
-  version: number | string,
-): TConfig {
-  return { ...(config as object), version } as TConfig;
 }
 
 /**
@@ -640,13 +564,20 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   }
 
   private async readFile(path: string): Promise<TConfig | null> {
+    let content: string;
     try {
-      const content = await readFile(path, "utf-8");
+      content = await readFile(path, "utf-8");
+    } catch {
+      return null; // Missing or unreadable file = no config.
+    }
+    try {
       const parsed = JSON.parse(content);
       // Strip $schema so it doesn't leak into config types
       const { $schema: _, ...rest } = parsed;
       return rest as TConfig;
-    } catch {
+    } catch (error) {
+      // A corrupt config silently behaves like no config otherwise.
+      console.error(`[settings] Failed to parse config ${path}: ${error}`);
       return null;
     }
   }

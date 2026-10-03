@@ -1,26 +1,15 @@
-import type { SettingsListTheme } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
+import { DOWN, UP } from "../test/keys";
+import { createSettingsListTheme } from "../test/theme";
 import {
   FuzzyMultiSelector as CheckboxList,
   type FuzzyMultiSelectorItem as CheckItem,
 } from "./fuzzy-multi-selector";
 
-const DOWN = "\u001b[B";
-const UP = "\u001b[A";
 const SPACE = " ";
 const CTRL_A = "\x01";
 const CTRL_X = "\x18";
 const BOX_CHARS = /[╭╮╰╯│├┤─]/;
-
-function createTheme(): SettingsListTheme {
-  return {
-    label: (text: string) => text,
-    value: (text: string) => text,
-    description: (text: string) => text,
-    cursor: "→ ",
-    hint: (text: string) => text,
-  };
-}
 
 function makeItems(
   names: string[],
@@ -41,7 +30,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta", "Gamma"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     const rendered = selector.render(80).join("\n");
@@ -52,7 +41,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     // Initial state - no Selected section
@@ -83,7 +72,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"], { Alpha: ["Sub1", "Sub2"] }),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     // Check Alpha
@@ -100,7 +89,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"], { Alpha: ["Sub1"] }),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     // Check Alpha
@@ -124,7 +113,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"], { Alpha: ["Sub1"] }),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     // Check Alpha
@@ -155,7 +144,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta", "Gamma"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     // Check Alpha
@@ -180,7 +169,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       showHints: false,
     });
 
@@ -192,7 +181,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     const rendered = selector.render(80).join("\n");
@@ -203,7 +192,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       showHints: true,
       hideHint: true,
     });
@@ -216,7 +205,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     const lines = selector.render(80);
@@ -229,7 +218,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     for (const ch of "zzzz") selector.handleInput(ch);
@@ -242,7 +231,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     expect(selector.getShortcuts()).toBe(
@@ -254,7 +243,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta", "Gamma"]),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     // Check Alpha and Gamma
@@ -273,7 +262,7 @@ describe("CheckboxList", () => {
     const selector = new CheckboxList({
       label: "Test",
       items: makeItems(["Alpha", "Beta"], { Alpha: ["Sub1"] }),
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
     });
 
     // Check Alpha

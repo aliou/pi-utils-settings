@@ -23,7 +23,8 @@
     "src",
     "skills",
     "README.md",
-    "!src/**/*.test.ts"
+    "!src/**/*.test.ts",
+    "!src/test"
   ],
   "pi": {
     "skills": [

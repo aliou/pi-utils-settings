@@ -64,23 +64,25 @@ export {
   type Migration,
   type MigrationContext,
   type MigrationMessageFactory,
-  type Scope,
   type VersionedConfig,
-} from "./config-loader";
-export { getNestedValue, setNestedValue } from "./helpers";
-export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./schema";
+} from "./config/loader";
+export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./config/schema";
 export {
   type FinalizeSchemaOptions,
   finalizeSchema,
   type GenerateSchemaOptions,
   type GenerateSchemaResult,
   generateSettingsSchema,
-} from "./schema-gen.mjs";
+} from "./config/schema-gen.mjs";
+export { getNestedValue, setNestedValue } from "./helpers";
 export {
-  type ExtraSettingsTab,
-  type ExtraSettingsTabChangeContext,
-  type ExtraSettingsTabContext,
   registerSettingsCommand,
   type SettingsCommandOptions,
 } from "./settings-command";
 export { getSettingsTheme, type SettingsTheme } from "./theme";
+export type {
+  ExtraSettingsTab,
+  ExtraSettingsTabChangeContext,
+  ExtraSettingsTabContext,
+  Scope,
+} from "./types";

@@ -190,7 +190,6 @@ export class SectionedSettings implements Component {
     this.flatEntries = this.buildFlatEntries(sections);
     this.filterEntries(this.searchInput?.getValue() ?? "");
 
-    // Restore cursor by item ID.
     if (currentId) {
       const items = this.getSelectableItems();
       const idx = items.findIndex((i) => i.id === currentId);
@@ -200,7 +199,6 @@ export class SectionedSettings implements Component {
       }
     }
 
-    // Fallback: clamp to valid range.
     const count = this.getSelectableItems().length;
     this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, count - 1));
   }
@@ -267,13 +265,11 @@ export class SectionedSettings implements Component {
       return lines;
     }
 
-    // Calculate max label width for alignment
     const maxLabelWidth = Math.min(
       30,
       Math.max(...allItems.map((item) => visibleWidth(item.label))),
     );
 
-    // Build visible entries with their "selectable index"
     let selectableIdx = -1;
     const rendered: Array<{
       line: string;
@@ -283,7 +279,6 @@ export class SectionedSettings implements Component {
 
     for (const entry of this.filteredEntries) {
       if (entry.type === "section") {
-        // Section header - add blank line before (except first)
         if (rendered.length > 0) {
           rendered.push({ line: "", isSelected: false });
         }
@@ -357,7 +352,6 @@ export class SectionedSettings implements Component {
       }
     }
 
-    // Scrolling: find the rendered index of the selected item
     const selectedRenderedIdx = rendered.findIndex((r) => r.isSelected);
     const totalLines = rendered.length;
     const startLine = Math.max(
@@ -374,7 +368,6 @@ export class SectionedSettings implements Component {
       if (r) lines.push(r.line);
     }
 
-    // Scroll indicator
     if (startLine > 0 || endLine < totalLines) {
       lines.push(
         this.theme.hint(`  (${this.selectedIndex + 1}/${allItems.length})`),

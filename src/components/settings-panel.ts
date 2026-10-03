@@ -1,10 +1,7 @@
 /**
- * The framed settings panel rendered by registerSettingsCommand:
- * top tabs, a SectionedSettings body, and exactly one shortcut line.
- *
- * One instance is one open settings session. All session state (drafts,
- * active tab, open submenu) lives on the instance; changes are tracked
- * in memory and only persisted by save() (Ctrl+S).
+ * The framed settings panel rendered by registerSettingsCommand.
+ * One instance is one open settings session: changes are tracked in memory
+ * and only persisted by save() (Ctrl+S).
  */
 
 import type {
@@ -18,81 +15,18 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
+import type { ConfigStore } from "../config/loader";
+import { getNestedValue, setNestedValue } from "../helpers";
+import { getSettingsTheme, type SettingsTheme } from "../theme";
 import {
-  SectionedSettings,
-  type SettingsSection,
-} from "./components/sectioned-settings";
-import type { ConfigStore, Scope } from "./config-loader";
-import { getNestedValue, setNestedValue } from "./helpers";
-import { SCOPE_LABELS, type SettingsTab } from "./settings-tabs";
-import { getSettingsTheme, type SettingsTheme } from "./theme";
-
-export interface ScopeSectionsContext<TConfig extends object> {
-  setDraft: (config: TConfig) => void;
-  scope: Scope;
-  isInherited: (path: string) => boolean;
-  theme: SettingsTheme;
-}
-
-export type ScopeSectionsBuilder<
-  TConfig extends object,
-  TResolved extends object,
-> = (
-  tabConfig: TConfig | null,
-  resolved: TResolved,
-  ctx: ScopeSectionsContext<TConfig>,
-) => SettingsSection[];
-
-export interface ExtraSettingsTabContext<
-  TConfig extends object,
-  TResolved extends object,
-> {
-  resolved: TResolved;
-  setDraftForScope: (scope: Scope, config: TConfig) => void;
-  getDraftForScope: (scope: Scope) => TConfig | null;
-  getRawForScope: (scope: Scope) => TConfig | null;
-  enabledScopes: Scope[];
-  theme: SettingsTheme;
-}
-
-export interface ExtraSettingsTabChangeContext<
-  TConfig extends object,
-  TResolved extends object,
-> extends ExtraSettingsTabContext<TConfig, TResolved> {
-  /**
-   * Apply the command-level onSettingChange/default change handler to a scope
-   * draft. Use this for value-cycling items rendered in extra tabs.
-   */
-  applySettingChangeToScope: (
-    scope: Scope,
-    id: string,
-    newValue: string,
-  ) => void;
-}
-
-export interface ExtraSettingsTab<
-  TConfig extends object,
-  TResolved extends object,
-> {
-  /** Unique tab id. Must not collide with scope ids (global/local/memory). */
-  id: string;
-  /** Tab label shown in top tab row. */
-  label: string;
-  /** Build sections for this extra tab. */
-  buildSections: (
-    ctx: ExtraSettingsTabContext<TConfig, TResolved>,
-  ) => SettingsSection[];
-  /**
-   * Optional value-cycling handler for non-submenu items in this extra tab.
-   * Extra tabs are not scope-bound, so call ctx.applySettingChangeToScope(...)
-   * or ctx.setDraftForScope(...) to choose which scope draft should change.
-   */
-  onSettingChange?: (
-    id: string,
-    newValue: string,
-    ctx: ExtraSettingsTabChangeContext<TConfig, TResolved>,
-  ) => void;
-}
+  type ExtraSettingsTab,
+  type ExtraSettingsTabChangeContext,
+  SCOPE_LABELS,
+  type Scope,
+  type ScopeSectionsBuilder,
+  type SettingsTab,
+} from "../types";
+import { SectionedSettings, type SettingsSection } from "./sectioned-settings";
 
 /** Default change handler: stores raw strings as-is via dotted path. */
 export function defaultChangeHandler<TConfig extends object>(
@@ -214,7 +148,6 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
     const lines: string[] = [];
     const contentWidth = Math.max(1, width - 2);
 
-    // Top border with title
     const titleText = ` ${this.title} `;
     const titleLen = visibleWidth(titleText);
     const topRuleLen = Math.max(1, width - titleLen - 3);
@@ -225,20 +158,17 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
         this.theme.fg("border", "╮"),
     );
 
-    // Tabs
     const tabs = this.renderTabs();
     if (tabs) {
       lines.push(this.padLine(tabs, contentWidth));
     }
     lines.push(this.padLine("", contentWidth));
 
-    // Settings content
     const innerLines = this.settings?.render(contentWidth) ?? [];
     for (const line of innerLines) {
       lines.push(this.padLine(line, contentWidth));
     }
 
-    // Separator
     lines.push(
       this.theme.fg("border", "├") +
         this.theme.fg("border", "─".repeat(contentWidth)) +
@@ -265,7 +195,6 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
     }
     lines.push(this.padLine(controlsText, contentWidth));
 
-    // Bottom border
     lines.push(
       this.theme.fg("border", "╰") +
         this.theme.fg("border", "─".repeat(contentWidth)) +
@@ -423,7 +352,6 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
       this.onSettingChange?.(id, newValue, structuredClone(baseConfig)) ??
       defaultChangeHandler(id, newValue, structuredClone(baseConfig));
 
-    // Store in draft, don't write to disk yet.
     this.setDraftForScope(scope, updated);
   }
 
@@ -492,7 +420,6 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
     if (saved) {
       this.ctx.ui.notify(`${this.extensionLabel}: saved`, "info");
       if (this.onSave) await this.onSave(this.ctx);
-      // Rebuild with fresh data.
       this.settings = this.buildList(this.activeTabId);
     }
 

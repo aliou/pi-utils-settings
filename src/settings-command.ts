@@ -8,27 +8,22 @@
  *
  * Registration throws ([settings]-prefixed errors) on invalid options,
  * before any command is registered. The settings UI itself lives in
- * ./settings-panel; tab primitives live in ./settings-tabs.
+ * components/settings-panel.
  */
 
 import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
-import type { ConfigStore, Scope } from "./config-loader";
+import { SettingsPanel } from "./components/settings-panel";
+import type { ConfigStore } from "./config/loader";
 import {
+  ALL_SCOPE_IDS,
   type ExtraSettingsTab,
+  type Scope,
   type ScopeSectionsBuilder,
-  SettingsPanel,
-} from "./settings-panel";
-import { ALL_SCOPE_IDS, toSettingsTabs } from "./settings-tabs";
-
-export {
-  defaultChangeHandler,
-  type ExtraSettingsTab,
-  type ExtraSettingsTabChangeContext,
-  type ExtraSettingsTabContext,
-} from "./settings-panel";
+  toSettingsTabs,
+} from "./types";
 
 export interface SettingsCommandOptions<
   TConfig extends object,

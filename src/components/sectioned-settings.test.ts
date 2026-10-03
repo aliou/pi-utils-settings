@@ -1,5 +1,7 @@
-import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
+import { DOWN, ENTER } from "../test/keys";
+import { createSettingsListTheme } from "../test/theme";
 import {
   type SectionedSettingItem,
   SectionedSettings,
@@ -9,27 +11,14 @@ import {
   type SubmenuDoneOptions,
 } from "./sectioned-settings";
 
-const ENTER = "\r";
-const DOWN = "\u001b[B";
-
-function createTheme(): SettingsListTheme {
-  return {
-    cursor: "> ",
-    label: (text: string) => text,
-    value: (text: string) => text,
-    description: (text: string) => text,
-    hint: (text: string) => text,
-  } as unknown as SettingsListTheme;
-}
-
 function makeSection(items: SectionedSettingItem[]): SettingsSection {
   return { label: "Test", items };
 }
 
 describe("SectionedSettings", () => {
   it("renders sectioned items", () => {
-    const settings = new SectionedSettings(
-      [
+    const settings = new SectionedSettings({
+      sections: [
         makeSection([
           {
             id: "feature",
@@ -39,11 +28,11 @@ describe("SectionedSettings", () => {
           },
         ]),
       ],
-      10,
-      createTheme(),
-      vi.fn(),
-      vi.fn(),
-    );
+      maxVisible: 10,
+      theme: createSettingsListTheme(),
+      onChange: vi.fn(),
+      onCancel: vi.fn(),
+    });
 
     const rendered = settings.render(80).join("\n");
     expect(rendered).toContain("Feature");
@@ -52,8 +41,8 @@ describe("SectionedSettings", () => {
 
   it("cycles through values on Enter/Space", () => {
     const onChange = vi.fn();
-    const settings = new SectionedSettings(
-      [
+    const settings = new SectionedSettings({
+      sections: [
         makeSection([
           {
             id: "feature",
@@ -63,11 +52,11 @@ describe("SectionedSettings", () => {
           },
         ]),
       ],
-      10,
-      createTheme(),
-      onChange,
-      vi.fn(),
-    );
+      maxVisible: 10,
+      theme: createSettingsListTheme(),
+      onChange: onChange,
+      onCancel: vi.fn(),
+    });
 
     settings.handleInput(ENTER);
 
@@ -87,8 +76,8 @@ describe("SectionedSettings", () => {
       invalidate: () => {},
     };
 
-    const settings = new SectionedSettings(
-      [
+    const settings = new SectionedSettings({
+      sections: [
         makeSection([
           {
             id: "async",
@@ -102,12 +91,12 @@ describe("SectionedSettings", () => {
           },
         ]),
       ],
-      10,
-      createTheme(),
-      onChange,
-      vi.fn(),
-      { requestRender },
-    );
+      maxVisible: 10,
+      theme: createSettingsListTheme(),
+      onChange: onChange,
+      onCancel: vi.fn(),
+      requestRender,
+    });
 
     settings.handleInput(ENTER);
     expect(settings.hasActiveSubmenu()).toBe(true);
@@ -132,8 +121,8 @@ describe("SectionedSettings", () => {
       invalidate: () => {},
     };
 
-    const settings = new SectionedSettings(
-      [
+    const settings = new SectionedSettings({
+      sections: [
         makeSection([
           {
             id: "cancelable",
@@ -146,11 +135,11 @@ describe("SectionedSettings", () => {
           },
         ]),
       ],
-      10,
-      createTheme(),
-      onChange,
-      vi.fn(),
-    );
+      maxVisible: 10,
+      theme: createSettingsListTheme(),
+      onChange: onChange,
+      onCancel: vi.fn(),
+    });
 
     settings.handleInput(ENTER);
     expect(settings.hasActiveSubmenu()).toBe(true);
@@ -171,43 +160,43 @@ describe("SectionedSettings", () => {
     }
 
     it("selectItem moves selection to the matching item", () => {
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             { id: "alpha", label: "Alpha", currentValue: "a" },
             { id: "bravo", label: "Bravo", currentValue: "b" },
           ]),
         ],
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+      });
 
       settings.selectItem("bravo");
 
       const rendered = settings.render(80).join("\n");
-      expect(rendered).toContain("> Bravo");
-      expect(rendered).not.toContain("> Alpha");
+      expect(rendered).toContain("→ Bravo");
+      expect(rendered).not.toContain("→ Alpha");
     });
 
     it("selectItem is a no-op for an unknown id", () => {
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             { id: "alpha", label: "Alpha", currentValue: "a" },
             { id: "bravo", label: "Bravo", currentValue: "b" },
           ]),
         ],
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+      });
 
       settings.selectItem("missing");
 
-      expect(settings.render(80).join("\n")).toContain("> Alpha");
+      expect(settings.render(80).join("\n")).toContain("→ Alpha");
     });
 
     it("done with navigateTo selects the target submenu item and auto-opens its submenu", () => {
@@ -220,8 +209,8 @@ describe("SectionedSettings", () => {
         | undefined;
       let deepOpens = 0;
 
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             {
               id: "entry",
@@ -244,11 +233,11 @@ describe("SectionedSettings", () => {
             },
           ]),
         ],
-        10,
-        createTheme(),
-        onChange,
-        vi.fn(),
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: onChange,
+        onCancel: vi.fn(),
+      });
 
       settings.handleInput(ENTER);
       expect(settings.hasActiveSubmenu()).toBe(true);
@@ -265,8 +254,8 @@ describe("SectionedSettings", () => {
       deepDone?.(undefined);
       expect(settings.hasActiveSubmenu()).toBe(false);
       const rendered = settings.render(80).join("\n");
-      expect(rendered).toContain("> Deep");
-      expect(rendered).not.toContain("> Entry");
+      expect(rendered).toContain("→ Deep");
+      expect(rendered).not.toContain("→ Entry");
     });
 
     it("done with navigateTo cycles a values target and fires onChange", () => {
@@ -275,8 +264,8 @@ describe("SectionedSettings", () => {
         | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
         | undefined;
 
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             {
               id: "entry",
@@ -295,11 +284,11 @@ describe("SectionedSettings", () => {
             },
           ]),
         ],
-        10,
-        createTheme(),
-        onChange,
-        vi.fn(),
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: onChange,
+        onCancel: vi.fn(),
+      });
 
       settings.handleInput(ENTER);
       entryDone?.(undefined, { navigateTo: "toggle" });
@@ -310,7 +299,7 @@ describe("SectionedSettings", () => {
       expect(onChange).toHaveBeenCalledWith("toggle", "on");
       expect(settings.hasActiveSubmenu()).toBe(false);
       const rendered = settings.render(80).join("\n");
-      expect(rendered).toContain("> Toggle");
+      expect(rendered).toContain("→ Toggle");
       expect(rendered).toContain("on");
     });
 
@@ -320,8 +309,8 @@ describe("SectionedSettings", () => {
         | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
         | undefined;
 
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             {
               id: "entry",
@@ -335,11 +324,11 @@ describe("SectionedSettings", () => {
             { id: "plain", label: "Plain", currentValue: "p" },
           ]),
         ],
-        10,
-        createTheme(),
-        onChange,
-        vi.fn(),
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: onChange,
+        onCancel: vi.fn(),
+      });
 
       settings.handleInput(ENTER);
       entryDone?.(undefined, { navigateTo: "plain" });
@@ -347,8 +336,8 @@ describe("SectionedSettings", () => {
       expect(onChange).not.toHaveBeenCalled();
       expect(settings.hasActiveSubmenu()).toBe(false);
       const rendered = settings.render(80).join("\n");
-      expect(rendered).toContain("> Plain");
-      expect(rendered).not.toContain("> Entry");
+      expect(rendered).toContain("→ Plain");
+      expect(rendered).not.toContain("→ Entry");
     });
 
     it("no-options close keeps the selection on the item that opened the submenu", () => {
@@ -357,8 +346,8 @@ describe("SectionedSettings", () => {
         | ((selectedValue?: string, options?: SubmenuDoneOptions) => void)
         | undefined;
 
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             { id: "alpha", label: "Alpha", currentValue: "a" },
             {
@@ -372,11 +361,11 @@ describe("SectionedSettings", () => {
             },
           ]),
         ],
-        10,
-        createTheme(),
-        onChange,
-        vi.fn(),
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: onChange,
+        onCancel: vi.fn(),
+      });
 
       settings.handleInput(DOWN);
       settings.handleInput(ENTER);
@@ -387,8 +376,8 @@ describe("SectionedSettings", () => {
       expect(onChange).toHaveBeenCalledWith("entry", "new");
       expect(settings.hasActiveSubmenu()).toBe(false);
       const rendered = settings.render(80).join("\n");
-      expect(rendered).toContain("> Entry");
-      expect(rendered).not.toContain("> Alpha");
+      expect(rendered).toContain("→ Entry");
+      expect(rendered).not.toContain("→ Alpha");
     });
 
     it("navigateTo to a missing id re-activates the current item", () => {
@@ -397,8 +386,8 @@ describe("SectionedSettings", () => {
         | undefined;
       let opens = 0;
 
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             {
               id: "entry",
@@ -412,11 +401,11 @@ describe("SectionedSettings", () => {
             },
           ]),
         ],
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+      });
 
       settings.handleInput(ENTER);
       expect(opens).toBe(1);
@@ -436,8 +425,8 @@ describe("SectionedSettings", () => {
       options: { hideHint?: boolean } = {},
       onCtx?: (ctx: SettingsSubmenuContext) => void,
     ): SectionedSettings {
-      return new SectionedSettings(
-        [
+      return new SectionedSettings({
+        sections: [
           makeSection([
             {
               id: "detail",
@@ -450,12 +439,12 @@ describe("SectionedSettings", () => {
             },
           ]),
         ],
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        options,
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        hideHint: options.hideHint,
+      });
     }
 
     it("returns undefined when no submenu is open", () => {
@@ -538,19 +527,19 @@ describe("SectionedSettings", () => {
   });
 
   it("filters items with search input", () => {
-    const settings = new SectionedSettings(
-      [
+    const settings = new SectionedSettings({
+      sections: [
         makeSection([
           { id: "alpha", label: "Alpha", currentValue: "a" },
           { id: "beta", label: "Beta", currentValue: "b" },
         ]),
       ],
-      10,
-      createTheme(),
-      vi.fn(),
-      vi.fn(),
-      { enableSearch: true },
-    );
+      maxVisible: 10,
+      theme: createSettingsListTheme(),
+      onChange: vi.fn(),
+      onCancel: vi.fn(),
+      enableSearch: true,
+    });
 
     // Type "bet" to filter down to Beta.
     for (const ch of "bet") {
@@ -584,14 +573,14 @@ describe("SectionedSettings", () => {
     ];
 
     it("pads short content to exactly contentHeight lines", () => {
-      const settings = new SectionedSettings(
-        oneItem(),
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        { contentHeight: 12 },
-      );
+      const settings = new SectionedSettings({
+        sections: oneItem(),
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        contentHeight: 12,
+      });
 
       const lines = settings.render(80);
       expect(lines).toHaveLength(12);
@@ -609,14 +598,14 @@ describe("SectionedSettings", () => {
         currentValue: "x",
       }));
 
-      const settings = new SectionedSettings(
-        [makeSection(items)],
-        25,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        { contentHeight: 5 },
-      );
+      const settings = new SectionedSettings({
+        sections: [makeSection(items)],
+        maxVisible: 25,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        contentHeight: 5,
+      });
 
       const lines = settings.render(80);
       // The list window and scroll indicator fit the 5-line budget: 2 item
@@ -628,14 +617,15 @@ describe("SectionedSettings", () => {
     });
 
     it("wraps a long description in full and shrinks the list window", () => {
-      const settings = new SectionedSettings(
-        manyItemsWithDescription(),
-        15,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        { enableSearch: true, contentHeight: 20 },
-      );
+      const settings = new SectionedSettings({
+        sections: manyItemsWithDescription(),
+        maxVisible: 15,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        enableSearch: true,
+        contentHeight: 20,
+      });
 
       const lines = settings.render(40);
       expect(lines).toHaveLength(20);
@@ -652,8 +642,8 @@ describe("SectionedSettings", () => {
     });
 
     it("bottom-anchors the description just above the hint line", () => {
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             {
               id: "alpha",
@@ -664,12 +654,12 @@ describe("SectionedSettings", () => {
             { id: "bravo", label: "Bravo", currentValue: "b" },
           ]),
         ],
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        { contentHeight: 12 },
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        contentHeight: 12,
+      });
 
       const lines = settings.render(80);
       expect(lines).toHaveLength(12);
@@ -687,8 +677,8 @@ describe("SectionedSettings", () => {
     it("renders an exact-fit description without cutting it", () => {
       // At width 40 the long description wraps to 4 lines; the exact-fit
       // budget is 2 list lines + 5 description lines + 2 hint lines.
-      const settings = new SectionedSettings(
-        [
+      const settings = new SectionedSettings({
+        sections: [
           makeSection([
             {
               id: "feature",
@@ -698,12 +688,12 @@ describe("SectionedSettings", () => {
             },
           ]),
         ],
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        { contentHeight: 9 },
-      );
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        contentHeight: 9,
+      });
 
       const lines = settings.render(40);
       expect(lines).toHaveLength(9);
@@ -713,14 +703,15 @@ describe("SectionedSettings", () => {
     });
 
     it("keeps the total height when the selected item has no description", () => {
-      const settings = new SectionedSettings(
-        manyItemsWithDescription(),
-        15,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        { enableSearch: true, contentHeight: 20 },
-      );
+      const settings = new SectionedSettings({
+        sections: manyItemsWithDescription(),
+        maxVisible: 15,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        enableSearch: true,
+        contentHeight: 20,
+      });
 
       expect(settings.render(40)).toHaveLength(20);
 
@@ -733,21 +724,21 @@ describe("SectionedSettings", () => {
     });
 
     it("renders identically when the option is unset", () => {
-      const withoutOption = new SectionedSettings(
-        oneItem(),
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-      );
-      const withZero = new SectionedSettings(
-        oneItem(),
-        10,
-        createTheme(),
-        vi.fn(),
-        vi.fn(),
-        { contentHeight: 0 },
-      );
+      const withoutOption = new SectionedSettings({
+        sections: oneItem(),
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      const withZero = new SectionedSettings({
+        sections: oneItem(),
+        maxVisible: 10,
+        theme: createSettingsListTheme(),
+        onChange: vi.fn(),
+        onCancel: vi.fn(),
+        contentHeight: 0,
+      });
 
       const baseline = withoutOption.render(80);
       expect(withZero.render(80)).toEqual(baseline);

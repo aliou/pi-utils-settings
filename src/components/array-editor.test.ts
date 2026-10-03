@@ -1,26 +1,15 @@
-import type { SettingsListTheme } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
+import { ENTER, ESC } from "../test/keys";
+import { createSettingsListTheme } from "../test/theme";
 import { ArrayEditor, type ArrayEditorOptions } from "./array-editor";
 
-const ENTER = "\r";
-const ESC = "";
 const BOX_CHARS = /[╭╮╰╯│├┤─]/;
-
-function createTheme(): SettingsListTheme {
-  return {
-    label: (text: string) => text,
-    value: (text: string) => text,
-    description: (text: string) => text,
-    cursor: "→ ",
-    hint: (text: string) => text,
-  };
-}
 
 function makeEditor(options: Partial<ArrayEditorOptions> = {}) {
   return new ArrayEditor({
     label: "Tags",
     items: ["one", "two"],
-    theme: createTheme(),
+    theme: createSettingsListTheme(),
     onSave: vi.fn(),
     onDone: vi.fn(),
     ...options,

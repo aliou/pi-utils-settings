@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { createSettingsListTheme } from "./test/theme";
 
 vi.mock("@earendil-works/pi-coding-agent", () => ({
   getSettingsListTheme: () => ({
@@ -10,27 +10,21 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   }),
 }));
 
+import { describe, expect, it, vi } from "vitest";
 import { ArrayEditor } from "./components/array-editor";
 import { SettingsDetailEditor } from "./components/settings-detail-editor";
+import type { Scope } from "./config-loader";
 import {
   defaultChangeHandler,
   registerSettingsCommand,
   type SettingsCommandOptions,
 } from "./settings-command";
+import { CTRL_S, DOWN, ENTER, ESC, TAB } from "./test/keys";
+import { countOccurrences } from "./test/render";
 
 interface TestConfig {
   feature?: string;
   nested?: { value?: string };
-}
-
-const ENTER = "\r";
-const ESC = "\u001b";
-const TAB = "\t";
-const DOWN = "\u001b[B";
-const CTRL_S = "\u0013";
-
-function countOccurrences(haystack: string, needle: string): number {
-  return haystack.split(needle).length - 1;
 }
 
 interface PanelComponent {
@@ -39,34 +33,38 @@ interface PanelComponent {
   invalidate?: () => void;
 }
 
+interface RegisteredCommand {
+  description?: string;
+  handler: (args: string, ctx: unknown) => Promise<void>;
+}
+
 function makeSettingsHarness(
   overrides: Partial<SettingsCommandOptions<TestConfig, TestConfig>> = {},
+  settings: { scopes?: Scope[]; withConfig?: Scope[] } = {},
 ) {
-  let handler: ((args: unknown, ctx: unknown) => Promise<void>) | undefined;
+  const commands = new Map<string, RegisteredCommand>();
   let component: PanelComponent | undefined;
   const done = vi.fn();
   const notify = vi.fn();
+  const requestRender = vi.fn();
 
   const pi = {
-    registerCommand: vi.fn(
-      (
-        _name: string,
-        command: { handler: (args: unknown, ctx: unknown) => Promise<void> },
-      ) => {
-        handler = command.handler;
-      },
-    ),
+    registerCommand: vi.fn((name: string, command: RegisteredCommand) => {
+      commands.set(name, command);
+    }),
   };
 
+  const enabledScopes = settings.scopes ?? ["global"];
+  const withConfig = new Set(settings.withConfig ?? ["global"]);
   const configStore = {
-    getEnabledScopes: () => ["global"],
-    hasConfig: () => true,
+    getEnabledScopes: () => [...enabledScopes],
+    hasConfig: (scope: Scope) => withConfig.has(scope),
     getRawConfig: () => ({ feature: "off" }),
     getConfig: () => ({ feature: "off" }),
     save: vi.fn(),
   };
 
-  registerSettingsCommand(pi as never, {
+  const options: SettingsCommandOptions<TestConfig, TestConfig> = {
     commandName: "test:settings",
     title: "Test Settings",
     configStore: configStore as never,
@@ -84,10 +82,13 @@ function makeSettingsHarness(
       },
     ],
     ...overrides,
-  });
+  };
 
-  const requestRender = vi.fn();
-
+  const theme = {
+    fg: (_color: string, text: string) => text,
+    bg: (_color: string, text: string) => text,
+    bold: (text: string) => text,
+  };
   const ctx = {
     hasUI: true,
     ui: {
@@ -95,11 +96,7 @@ function makeSettingsHarness(
       custom: vi.fn((factory: (...args: unknown[]) => unknown) => {
         component = factory(
           { requestRender },
-          {
-            fg: (_color: string, text: string) => text,
-            bg: (_color: string, text: string) => text,
-            bold: (text: string) => text,
-          },
+          theme,
           undefined,
           done,
         ) as PanelComponent;
@@ -107,20 +104,68 @@ function makeSettingsHarness(
     },
   };
 
+  const invoke = async (
+    name: string,
+    args = "",
+  ): Promise<PanelComponent | undefined> => {
+    const command = commands.get(name);
+    if (!command) {
+      throw new Error(`command "${name}" is not registered`);
+    }
+    await command.handler(args, ctx);
+    return component;
+  };
+
+  let registrationError: unknown;
+  try {
+    registerSettingsCommand(pi as never, options);
+  } catch (error) {
+    // Keep the harness around so tests can assert registration failures.
+    registrationError = error;
+  }
+
   return {
-    async open() {
-      await handler?.([], ctx);
-      if (!component) throw new Error("settings component was not created");
-      return component;
-    },
+    options,
+    commands,
+    registerCommand: pi.registerCommand,
+    configStore,
     done,
     notify,
     requestRender,
-    configStore,
+    ctx,
+    registrationError,
+    async open(args = "") {
+      const opened = await invoke(options.commandName, args);
+      if (!opened) throw new Error("settings component was not created");
+      return opened;
+    },
+    openCommand(name: string, args = "") {
+      return invoke(name, args);
+    },
   };
 }
 
 describe("registerSettingsCommand", () => {
+  it("does not open the UI when the context has no UI", async () => {
+    const harness = makeSettingsHarness();
+    harness.ctx.hasUI = false;
+
+    const opened = await harness.openCommand("test:settings");
+
+    expect(opened).toBeUndefined();
+    expect(harness.notify).not.toHaveBeenCalled();
+    expect(harness.done).not.toHaveBeenCalled();
+  });
+
+  it("warns when no tabs are configured", async () => {
+    const harness = makeSettingsHarness({}, { scopes: [] });
+
+    const opened = await harness.openCommand("test:settings");
+
+    expect(opened).toBeUndefined();
+    expect(harness.notify).toHaveBeenCalledWith("No tabs configured", "error");
+  });
+
   it("preserves close behavior when no onBeforeClose hook is provided", async () => {
     const harness = makeSettingsHarness();
     const component = await harness.open();
@@ -166,6 +211,30 @@ describe("registerSettingsCommand", () => {
     expect(harness.done).not.toHaveBeenCalled();
   });
 
+  it("defaults to the first scope with existing config", async () => {
+    const harness = makeSettingsHarness(
+      {
+        buildSections: (_tabConfig, _resolved, scopeCtx) => [
+          {
+            label: "General",
+            items: [
+              {
+                id: "feature",
+                label: `Feature (${scopeCtx.scope})`,
+                currentValue: "off",
+                values: ["off", "on"],
+              },
+            ],
+          },
+        ],
+      },
+      { scopes: ["global", "local"], withConfig: ["local"] },
+    );
+    const component = await harness.open();
+
+    expect(component.render(80).join("\n")).toContain("Feature (local)");
+  });
+
   it("falls back to default handling when onSettingChange returns null", async () => {
     const onSettingChange = vi.fn(() => null);
     const harness = makeSettingsHarness({ onSettingChange });
@@ -181,6 +250,44 @@ describe("registerSettingsCommand", () => {
     expect(harness.configStore.save).toHaveBeenCalledWith("global", {
       feature: "on",
     });
+  });
+
+  it("calls onSave after a successful save", async () => {
+    const onSave = vi.fn();
+    const harness = makeSettingsHarness({ onSave });
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+    component.handleInput?.(CTRL_S);
+    await Promise.resolve();
+
+    expect(harness.configStore.save).toHaveBeenCalledWith("global", {
+      feature: "on",
+    });
+    expect(onSave).toHaveBeenCalledWith(harness.ctx);
+  });
+
+  it("notifies when saving fails and keeps the draft", async () => {
+    const harness = makeSettingsHarness();
+    harness.configStore.save.mockRejectedValueOnce(new Error("disk full"));
+    const component = await harness.open();
+
+    component.handleInput?.(ENTER);
+    component.handleInput?.(CTRL_S);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(harness.notify).toHaveBeenCalledWith(
+      "Failed to save Global: Error: disk full",
+      "error",
+    );
+    expect(harness.notify).not.toHaveBeenCalledWith("test: saved", "info");
+    // The draft survives: saving again retries.
+    harness.configStore.save.mockResolvedValueOnce(undefined);
+    component.handleInput?.(CTRL_S);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(harness.configStore.save).toHaveBeenCalledTimes(2);
   });
 
   it("allows extra tab value cycling to update a scope draft", async () => {
@@ -316,7 +423,7 @@ describe("unified shortcut line", () => {
   function makeDetailEditorHarness() {
     let capturedHideHint: boolean | undefined;
     const harness = makeSettingsHarness({
-      buildSections: (_tabConfig, _resolved, ctx) => [
+      buildSections: () => [
         {
           label: "General",
           items: [
@@ -334,7 +441,7 @@ describe("unified shortcut line", () => {
                 capturedHideHint = subCtx.hideHint;
                 return new SettingsDetailEditor({
                   title: "Editor details",
-                  theme: ctx.theme,
+                  theme: createSettingsListTheme(),
                   fields: [
                     {
                       id: "name",
@@ -449,7 +556,7 @@ describe("unified shortcut line", () => {
 
   it("hosts an unframed ArrayEditor submenu with a single controls line at fixed height", async () => {
     const harness = makeSettingsHarness({
-      buildSections: (_tabConfig, _resolved, ctx) => [
+      buildSections: () => [
         {
           label: "Collections",
           items: [
@@ -461,7 +568,7 @@ describe("unified shortcut line", () => {
                 new ArrayEditor({
                   label: "Tags",
                   items: ["one"],
-                  theme: ctx.theme,
+                  theme: createSettingsListTheme(),
                   hideHint: subCtx.hideHint,
                   onSave: () => {},
                   onDone: () => done(undefined),

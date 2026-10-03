@@ -1,21 +1,7 @@
-import type { SettingsListTheme } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
+import { DOWN, ENTER, ESC, UP } from "../test/keys";
+import { createSettingsListTheme } from "../test/theme";
 import { FuzzySelector } from "./fuzzy-selector";
-
-const DOWN = "\u001b[B";
-const UP = "\u001b[A";
-const ENTER = "\r";
-const ESC = "\u001b";
-
-function createTheme(): SettingsListTheme {
-  return {
-    label: (text: string) => text,
-    value: (text: string) => text,
-    description: (text: string) => text,
-    cursor: "→ ",
-    hint: (text: string) => text,
-  };
-}
 
 const BOX_CHARS = /[╭╮╰╯│├┤─]/;
 
@@ -27,7 +13,7 @@ describe("FuzzySelector", () => {
     const selector = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect,
       onDone,
       searchThreshold: 3,
@@ -51,7 +37,7 @@ describe("FuzzySelector", () => {
     const selector = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma", "Delta"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect,
       onDone: () => {},
       searchThreshold: 3,
@@ -72,7 +58,7 @@ describe("FuzzySelector", () => {
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma"],
       currentValue: "Gamma",
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect,
       onDone: () => {},
       searchThreshold: 7,
@@ -98,7 +84,7 @@ describe("FuzzySelector", () => {
         "Theta",
       ],
       currentValue: "Theta",
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect,
       onDone: () => {},
       searchThreshold: 7,
@@ -116,7 +102,7 @@ describe("FuzzySelector", () => {
     const selector = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect: () => {},
       onDone: () => {},
       searchThreshold: 7,
@@ -132,7 +118,7 @@ describe("FuzzySelector", () => {
     const selector = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma", "Delta"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect: () => {},
       onDone: () => {},
       searchThreshold: 3,
@@ -151,7 +137,7 @@ describe("FuzzySelector", () => {
     const plain = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect: () => {},
       onDone: () => {},
       searchThreshold: 7,
@@ -161,7 +147,7 @@ describe("FuzzySelector", () => {
     const search = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta", "Gamma", "Delta"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect: () => {},
       onDone: () => {},
       searchThreshold: 3,
@@ -178,7 +164,7 @@ describe("FuzzySelector", () => {
     const hidden = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect: () => {},
       onDone: () => {},
       searchThreshold: 7,
@@ -189,7 +175,7 @@ describe("FuzzySelector", () => {
     const shown = new FuzzySelector({
       label: "Pick",
       items: ["Alpha", "Beta"],
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onSelect: () => {},
       onDone: () => {},
       searchThreshold: 7,

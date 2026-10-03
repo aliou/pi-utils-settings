@@ -66,6 +66,19 @@ export interface SettingsSection {
 }
 
 export interface SectionedSettingsOptions {
+  sections: SettingsSection[];
+  /** Theme used for all styling. */
+  theme: SettingsListTheme;
+  /** Called when an item's value changes (value cycling or submenu close). */
+  onChange: (id: string, newValue: string) => void;
+  /** Called on Esc when no submenu is open. */
+  onCancel: () => void;
+  /**
+   * Max item rows shown in the list window before scrolling.
+   * Default: 15. Ignored when contentHeight is set (the window flexes to
+   * fit the fixed content height instead).
+   */
+  maxVisible?: number;
   enableSearch?: boolean;
   /** Extra text appended to the hint line (e.g. "Ctrl+S to save"). */
   hintSuffix?: string;
@@ -100,6 +113,9 @@ interface FlatEntry {
   item?: SectionedSettingItem;
 }
 
+/** Default max item rows in the list window when contentHeight is unset. */
+const DEFAULT_MAX_VISIBLE = 15;
+
 export class SectionedSettings implements Component {
   private sections: SettingsSection[];
   private flatEntries: FlatEntry[];
@@ -120,19 +136,12 @@ export class SectionedSettings implements Component {
   private submenuItemIndex: number | null = null;
   private navigateAfterClose: string | null = null;
 
-  constructor(
-    sections: SettingsSection[],
-    maxVisible: number,
-    theme: SettingsListTheme,
-    onChange: (id: string, newValue: string) => void,
-    onCancel: () => void,
-    options: SectionedSettingsOptions = {},
-  ) {
-    this.sections = sections;
-    this.maxVisible = maxVisible;
-    this.theme = theme;
-    this.onChange = onChange;
-    this.onCancel = onCancel;
+  constructor(options: SectionedSettingsOptions) {
+    this.sections = options.sections;
+    this.maxVisible = options.maxVisible ?? DEFAULT_MAX_VISIBLE;
+    this.theme = options.theme;
+    this.onChange = options.onChange;
+    this.onCancel = options.onCancel;
     this.searchEnabled = options.enableSearch ?? false;
     this.hintSuffix = options.hintSuffix ?? "";
     this.hideHint = options.hideHint ?? false;
@@ -145,7 +154,7 @@ export class SectionedSettings implements Component {
       this.searchInput = new Input();
     }
 
-    this.flatEntries = this.buildFlatEntries(sections);
+    this.flatEntries = this.buildFlatEntries(this.sections);
     this.filteredEntries = this.flatEntries;
   }
 
@@ -194,16 +203,6 @@ export class SectionedSettings implements Component {
     // Fallback: clamp to valid range.
     const count = this.getSelectableItems().length;
     this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, count - 1));
-  }
-
-  updateValue(id: string, newValue: string): void {
-    for (const section of this.sections) {
-      const item = section.items.find((i) => i.id === id);
-      if (item) {
-        item.currentValue = newValue;
-        return;
-      }
-    }
   }
 
   /** Move selection to the item with the given id (no-op if not found). */

@@ -1,22 +1,11 @@
-import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
+import { ENTER, ESC } from "../test/keys";
+import { createSettingsListTheme } from "../test/theme";
 import {
   SettingsDetailEditor,
   type SettingsDetailField,
 } from "./settings-detail-editor";
-
-const ENTER = "\r";
-const ESC = "\u001b";
-
-function createTheme(): SettingsListTheme {
-  return {
-    cursor: "> ",
-    label: (text: string) => text,
-    value: (text: string) => text,
-    hint: (text: string) => text,
-    description: (text: string) => text,
-  } as unknown as SettingsListTheme;
-}
 
 describe("SettingsDetailEditor", () => {
   it("navigates with j/k and returns summary on Esc", () => {
@@ -42,7 +31,7 @@ describe("SettingsDetailEditor", () => {
     const editor = new SettingsDetailEditor({
       title: "Details",
       fields,
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onDone: (summary) => doneCalls.push(summary),
       getDoneSummary: () => "2 fields",
     });
@@ -50,7 +39,7 @@ describe("SettingsDetailEditor", () => {
     editor.handleInput("k");
 
     const rendered = editor.render(80).join("\n");
-    expect(rendered).toContain("> Second");
+    expect(rendered).toContain("→ Second");
     expect(rendered).toContain("on");
 
     editor.handleInput(ESC);
@@ -86,7 +75,7 @@ describe("SettingsDetailEditor", () => {
     const editor = new SettingsDetailEditor({
       title: "Details",
       fields,
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onDone: () => {},
     });
 
@@ -132,7 +121,7 @@ describe("SettingsDetailEditor", () => {
     const editor = new SettingsDetailEditor({
       title: "Details",
       fields,
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onDone: () => {},
     });
 
@@ -177,7 +166,7 @@ describe("SettingsDetailEditor", () => {
     const editor = new SettingsDetailEditor({
       title: "Details",
       fields,
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onDone: () => {},
     });
 
@@ -187,7 +176,7 @@ describe("SettingsDetailEditor", () => {
     editor.handleInput("x");
 
     const rendered = editor.render(80).join("\n");
-    expect(rendered).toContain("> Nested");
+    expect(rendered).toContain("→ Nested");
     expect(rendered).toContain("› open");
     expect(summaryFromNested).toBe("updated");
   });
@@ -221,7 +210,7 @@ describe("SettingsDetailEditor", () => {
     const editor = new SettingsDetailEditor({
       title: "Details",
       fields,
-      theme: createTheme(),
+      theme: createSettingsListTheme(),
       onDone: () => {},
       requestRender,
     });
@@ -245,7 +234,7 @@ describe("SettingsDetailEditor", () => {
       return new SettingsDetailEditor({
         title: "Details",
         fields,
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
         ...options,
       });
@@ -396,7 +385,7 @@ describe("SettingsDetailEditor", () => {
       const editor = new SettingsDetailEditor({
         title: "Details",
         fields: [textField()],
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
         hideHint: true,
       });
@@ -411,7 +400,7 @@ describe("SettingsDetailEditor", () => {
       const editor = new SettingsDetailEditor({
         title: "Details",
         fields: [textField()],
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
         hideHint: true,
         contentHeight: 12,
@@ -434,7 +423,7 @@ describe("SettingsDetailEditor", () => {
       const editor = new SettingsDetailEditor({
         title: "Details",
         fields: [textField()],
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
       });
 
@@ -476,7 +465,7 @@ describe("SettingsDetailEditor", () => {
       return new SettingsDetailEditor({
         title: "Details",
         fields,
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
         contentHeight,
       });
@@ -550,7 +539,7 @@ describe("SettingsDetailEditor", () => {
       const withoutOption = new SettingsDetailEditor({
         title: "Details",
         fields: makeBooleanFields(3, "A short description."),
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
       });
 
@@ -582,28 +571,28 @@ describe("SettingsDetailEditor", () => {
       const editor = new SettingsDetailEditor({
         title: "Details",
         fields: [header("a"), bool("b")],
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
       });
 
-      expect(editor.render(80).join("\n")).toContain("> Bool b");
+      expect(editor.render(80).join("\n")).toContain("→ Bool b");
     });
 
     it("skips headers when navigating in both directions, with wrap", () => {
       const editor = new SettingsDetailEditor({
         title: "Details",
         fields: [bool("a"), header("h"), bool("b")],
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
       });
 
-      expect(editor.render(80).join("\n")).toContain("> Bool a");
+      expect(editor.render(80).join("\n")).toContain("→ Bool a");
       editor.handleInput("j");
-      expect(editor.render(80).join("\n")).toContain("> Bool b");
+      expect(editor.render(80).join("\n")).toContain("→ Bool b");
       editor.handleInput("j");
-      expect(editor.render(80).join("\n")).toContain("> Bool a");
+      expect(editor.render(80).join("\n")).toContain("→ Bool a");
       editor.handleInput("k");
-      expect(editor.render(80).join("\n")).toContain("> Bool b");
+      expect(editor.render(80).join("\n")).toContain("→ Bool b");
     });
 
     it("does not activate a header on Enter", () => {
@@ -611,7 +600,7 @@ describe("SettingsDetailEditor", () => {
       const editor = new SettingsDetailEditor({
         title: "Details",
         fields: [header("only")],
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: (summary) => doneCalls.push(summary),
       });
 
@@ -627,7 +616,7 @@ describe("SettingsDetailEditor", () => {
       const editor = new SettingsDetailEditor({
         title: "Details",
         fields: [bool("a"), header("stale", "not served by gateway")],
-        theme: createTheme(),
+        theme: createSettingsListTheme(),
         onDone: () => {},
       });
 
@@ -637,7 +626,7 @@ describe("SettingsDetailEditor", () => {
       // Inert row: no cursor on the header even after moving down from the
       // only selectable row (wraps back).
       editor.handleInput("j");
-      expect(editor.render(80).join("\n")).toContain("> Bool a");
+      expect(editor.render(80).join("\n")).toContain("→ Bool a");
     });
   });
 });

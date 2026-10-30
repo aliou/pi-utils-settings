@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assert, test as baseTest, describe, expect, vi } from "vitest";
 import {
+  bindProjectConfig,
   ConfigLoader,
   createConfigStore,
   type MigrationContext,
@@ -1095,6 +1096,134 @@ describe("ConfigLoader semver migrations", () => {
     assert(received, "context should be passed to the message factory");
     expect(received.fromVersion).toBe("1.0.0");
     expect(received.toVersion).toBe("1.1.0");
+  });
+});
+
+describe("ConfigLoader project trust", () => {
+  const name = "test-project";
+
+  test("defers project reads and migrations until trusted", async ({
+    testDir,
+  }) => {
+    currentTestDir = testDir;
+    const dir = join(testDir, ".pi", "extensions");
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, `${name}.json`);
+    const original = '{"foo":"project"}';
+    writeFileSync(path, original);
+    const run = vi.fn((config: TestConfig) => ({ ...config, bar: 7 }));
+    const loader = new ConfigLoader<TestConfig, TestResolved>(name, DEFAULTS, {
+      scopes: ["local", "memory"],
+      migrations: [{ name: "populate", version: 1, run }],
+    });
+
+    await loader.load();
+    expect(loader.getProjectState()).toBe("pending");
+    expect(loader.getConfig()).toEqual(DEFAULTS);
+    expect(readFileSync(path, "utf-8")).toBe(original);
+    await expect(loader.save("local", {})).rejects.toThrow("not trusted");
+
+    await loader.loadProject({ cwd: testDir, isProjectTrusted: () => false });
+    expect(loader.getProjectState()).toBe("untrusted");
+    expect(loader.getConfig()).toEqual(DEFAULTS);
+    expect(run).not.toHaveBeenCalled();
+    expect(readFileSync(path, "utf-8")).toBe(original);
+    expect(loader.drainMessages()).toEqual([
+      `Ignored ${path}: project not trusted. Use /trust and restart Pi to apply it.`,
+    ]);
+    await expect(loader.save("local", {})).rejects.toThrow("not trusted");
+
+    await loader.save("memory", { foo: "memory" });
+    await loader.loadProject({ cwd: testDir, isProjectTrusted: () => true });
+    expect(loader.getProjectState()).toBe("trusted");
+    expect(loader.getRawConfig("local")).toEqual({
+      foo: "project",
+      bar: 7,
+      version: 1,
+    });
+    expect(loader.getConfig().foo).toBe("memory");
+    expect(loader.getConfig().bar).toBe(7);
+    expect(JSON.parse(readFileSync(path, "utf-8"))).toEqual(
+      loader.getRawConfig("local"),
+    );
+    expect(createConfigStore(loader).getScopeState?.("local")).toBe("trusted");
+
+    await loader.load();
+    expect(loader.getProjectState()).toBe("pending");
+    expect(loader.getRawConfig("local")).toBeNull();
+    await expect(loader.save("local", {})).rejects.toThrow("not trusted");
+  });
+
+  test("does not parse untrusted files or warn for absent files", async ({
+    testDir,
+  }) => {
+    currentTestDir = testDir;
+    const loader = new ConfigLoader<TestConfig, TestResolved>(name, DEFAULTS);
+    await loader.load();
+    await loader.loadProject({ cwd: testDir, isProjectTrusted: () => false });
+    expect(loader.drainMessages()).toEqual([]);
+    const path = join(testDir, ".pi", "extensions", `${name}.json`);
+    mkdirSync(join(testDir, ".pi", "extensions"), { recursive: true });
+    writeFileSync(path, "{");
+    await loader.loadProject({ cwd: testDir, isProjectTrusted: () => false });
+    expect(loader.drainMessages()).toEqual([
+      expect.stringContaining("project not trusted"),
+    ]);
+    await loader.save("global", { foo: "global" });
+    expect(loader.getRawConfig("local")).toBeNull();
+    expect(loader.drainMessages()).toEqual([]);
+    expect(readFileSync(path, "utf-8")).toBe("{");
+  });
+
+  test("saves local config under the trusted context cwd", async ({
+    testDir,
+  }) => {
+    currentTestDir = testDir;
+    const loader = new ConfigLoader<TestConfig, TestResolved>(name, DEFAULTS);
+    await loader.load();
+    await loader.loadProject({ cwd: testDir, isProjectTrusted: () => true });
+    await loader.save("local", { foo: "saved" });
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(testDir, ".pi", "extensions", `${name}.json`),
+          "utf-8",
+        ),
+      ),
+    ).toEqual({ foo: "saved" });
+    expect(loader.getConfig().foo).toBe("saved");
+    await loader.loadProject({ cwd: testDir, isProjectTrusted: () => false });
+    expect(loader.getRawConfig("local")).toBeNull();
+    expect(loader.getConfig()).toEqual(DEFAULTS);
+  });
+
+  test("binds project loading to session_start", async ({ testDir }) => {
+    currentTestDir = testDir;
+    const loader = new ConfigLoader<TestConfig, TestResolved>(name, DEFAULTS);
+    await loader.load();
+    const on = vi.fn();
+    bindProjectConfig({ on } as never, loader);
+    expect(on).toHaveBeenCalledWith("session_start", expect.any(Function));
+    await on.mock.calls[0]?.[1](
+      {},
+      { cwd: testDir, isProjectTrusted: () => true },
+    );
+    expect(loader.getProjectState()).toBe("trusted");
+  });
+
+  test("does not load disabled local scope", async ({ testDir }) => {
+    currentTestDir = testDir;
+    const dir = join(testDir, ".pi", "extensions");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${name}.json`), '{"foo":"project"}');
+    const loader = new ConfigLoader<TestConfig, TestResolved>(name, DEFAULTS, {
+      scopes: ["global"],
+    });
+    await loader.load();
+    await loader.loadProject({ cwd: testDir, isProjectTrusted: () => true });
+    expect(loader.getRawConfig("local")).toBeNull();
+    expect(loader.getConfig()).toEqual(DEFAULTS);
+    expect(loader.drainMessages()).toEqual([]);
   });
 });
 

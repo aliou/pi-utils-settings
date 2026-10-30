@@ -15,7 +15,7 @@ Two types: a partial user-facing schema and a fully-resolved internal schema.
 
 ```typescript
 // config.ts
-import { ConfigLoader } from "@aliou/pi-utils-settings";
+import { bindProjectConfig, ConfigLoader } from "@aliou/pi-utils-settings";
 
 // User-facing: all fields optional (stored on disk)
 interface MyConfig {
@@ -41,8 +41,11 @@ export const configLoader = new ConfigLoader<MyConfig, ResolvedConfig>(
 
 // In extension activate():
 await configLoader.load();
-const config = configLoader.getConfig(); // ResolvedConfig
+bindProjectConfig(pi, configLoader);
+const config = configLoader.getConfig();
 ```
+
+Bind immediately after loading, before other `session_start` handlers. Project settings load only when `ctx.isProjectTrusted()` is true, using `ctx.cwd`. Untrusted files are ignored without reading or writing them; Local settings cannot be edited or saved. Use `/trust` and restart Pi to apply them. Without binding, project state stays `"pending"`.
 
 ### 2. Register settings command
 
@@ -585,9 +588,11 @@ See `references/json-schema.md` (relative to this skill directory) for the full 
 
 ```typescript
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { bindProjectConfig } from "@aliou/pi-utils-settings";
 
 export default async function activate(pi: ExtensionAPI) {
   await configLoader.load();
+  bindProjectConfig(pi, configLoader);
   registerSettingsCommand(pi, { /* ... */ });
 }
 ```

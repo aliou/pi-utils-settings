@@ -8,6 +8,7 @@
  * 4. Use resolved config for runtime behavior
  */
 
+import { bindProjectConfig } from "@aliou/pi-utils-settings";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -19,6 +20,7 @@ import { configLoader } from "./config";
 export default async function activate(pi: ExtensionAPI) {
   // 1. Load config (reads from disk, applies migrations, merges scopes)
   await configLoader.load();
+  bindProjectConfig(pi, configLoader);
 
   // 2. Register settings command: /example:settings
   registerExampleSettings(pi);

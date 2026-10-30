@@ -51,6 +51,43 @@ function expectRegistrationError(
 }
 
 describe("registerSettingsCommand", () => {
+  it.each([
+    "pending",
+    "untrusted",
+    "trusted",
+  ] as const)("gates local editing when project state is %s", async (state) => {
+    const harness = makeSettingsHarness(
+      {},
+      { scopes: ["local"], withConfig: ["local"] },
+    );
+    harness.options.configStore.getScopeState = () => state;
+    harness.options.configStore.getScopePath = () => "project.json";
+    const component = await harness.open();
+    const rendered = component.render(100).join("\n");
+
+    if (state === "pending") {
+      expect(rendered).toContain("Project settings are not loaded.");
+    } else if (state === "untrusted") {
+      expect(rendered).toContain("Project not trusted");
+      expect(rendered).toContain("Settings in project.json are ignored.");
+      expect(rendered).toContain("Use /trust and restart Pi to apply them.");
+    } else {
+      expect(rendered).toContain("Feature");
+    }
+    component.handleInput?.(ENTER);
+    component.handleInput?.(CTRL_S);
+    await Promise.resolve();
+    if (state === "trusted") {
+      expect(harness.configStore.save).toHaveBeenCalledWith("local", {
+        feature: "on",
+      });
+    } else {
+      expect(rendered).not.toContain("Enter/Space change");
+      expect(rendered).not.toContain("Ctrl+S save");
+      expect(harness.configStore.save).not.toHaveBeenCalled();
+    }
+  });
+
   it("does not open the UI when the context has no UI", async () => {
     const harness = makeSettingsHarness();
     harness.ctx.hasUI = false;

@@ -19,7 +19,7 @@ pnpm add @aliou/pi-utils-settings
 Generic JSON config loader with global + local (project) scopes, deep merge, and versioned migrations.
 
 ```typescript
-import { ConfigLoader, type Migration } from "@aliou/pi-utils-settings";
+import { bindProjectConfig, ConfigLoader, type Migration } from "@aliou/pi-utils-settings";
 
 interface MyConfig {
   features?: { darkMode?: boolean };
@@ -44,8 +44,16 @@ const configLoader = new ConfigLoader<MyConfig, ResolvedConfig>(
 );
 
 await configLoader.load();
-const config = configLoader.getConfig(); // ResolvedConfig (defaults merged with global + local)
+bindProjectConfig(pi, configLoader);
+
+pi.on("session_start", () => {
+  const config = configLoader.getConfig();
+});
 ```
+
+`load()` loads defaults and global config and resets project state to `"pending"`. Call `bindProjectConfig(pi, configLoader)` immediately afterwards, before registering other `session_start` handlers. It calls `loadProject(ctx)` using `ctx.cwd` and `ctx.isProjectTrusted()`. Trusted project config is merged and migrated; untrusted config is ignored without reading or writing it. Memory overrides survive `loadProject()`.
+
+`getProjectState()` returns `"pending"`, `"trusted"`, or `"untrusted"`. Local saves require `"trusted"`. The Local tab stays visible but cannot be edited until trusted. Use `/trust` and restart Pi to apply project settings. Ignored files produce a `drainMessages()` notice.
 
 #### Versioned migrations
 

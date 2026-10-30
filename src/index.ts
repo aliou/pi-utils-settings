@@ -58,12 +58,14 @@ export {
   type WizardStepContext,
 } from "./components/wizard";
 export {
+  bindProjectConfig,
   ConfigLoader,
   type ConfigStore,
   createConfigStore,
   type Migration,
   type MigrationContext,
   type MigrationMessageFactory,
+  type ProjectState,
   type VersionedConfig,
 } from "./config/loader";
 export { type BuildSchemaUrlOptions, buildSchemaUrl } from "./config/schema";

@@ -164,7 +164,8 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
     }
     lines.push(this.padLine("", contentWidth));
 
-    const innerLines = this.settings?.render(contentWidth) ?? [];
+    const blocked = this.getLocalNotice(this.activeTabId);
+    const innerLines = blocked ?? this.settings?.render(contentWidth) ?? [];
     for (const line of innerLines) {
       lines.push(this.padLine(line, contentWidth));
     }
@@ -186,11 +187,12 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
     if (submenuShortcuts) {
       controlsText = this.theme.fg("dim", ` ${submenuShortcuts}`);
     } else {
-      const parts = ["Enter/Space change"];
+      const parts = blocked ? [] : ["Enter/Space change"];
       if (this.tabs.length > 1) {
         parts.push("Tab/Shift+Tab tab");
       }
-      parts.push("Ctrl+S save", "Esc close");
+      if (!blocked) parts.push("Ctrl+S save");
+      parts.push("Esc close");
       controlsText = this.theme.fg("dim", ` ${parts.join(" · ")}`);
     }
     lines.push(this.padLine(controlsText, contentWidth));
@@ -254,6 +256,7 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
     if (!this.enabledScopeIds.has(scope)) {
       throw new Error(`[settings] Scope "${scope}" is not enabled`);
     }
+    if (this.getLocalNotice(scope)) return;
     this.drafts[scope] = config;
   }
 
@@ -283,7 +286,26 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
     if (this.isDirty()) void this.save();
   }
 
+  private getLocalNotice(tabId: string): string[] | null {
+    if (tabId !== "local") return null;
+    const state = this.configStore.getScopeState?.("local");
+    if (!state || state === "trusted") return null;
+    if (state === "pending") return ["Project settings are not loaded."];
+    const path = this.configStore.getScopePath?.("local");
+    return [
+      "Project not trusted",
+      path
+        ? `Settings in ${path} are ignored.`
+        : "Project settings are ignored.",
+      "Use /trust and restart Pi to apply them.",
+    ];
+  }
+
   private getSectionsForTab(tabId: string): SettingsSection[] {
+    if (this.getLocalNotice(tabId)) {
+      this.currentSections = [];
+      return this.currentSections;
+    }
     const resolved = this.configStore.getConfig();
 
     if (this.isScopeTabId(tabId)) {
@@ -403,7 +425,7 @@ export class SettingsPanel<TConfig extends object, TResolved extends object>
 
     for (const scope of this.enabledScopes) {
       const draft = this.drafts[scope];
-      if (!draft) continue;
+      if (!draft || this.getLocalNotice(scope)) continue;
 
       try {
         await this.configStore.save(scope, draft);

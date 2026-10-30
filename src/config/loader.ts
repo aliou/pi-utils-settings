@@ -15,7 +15,10 @@ import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import {
+  type ExtensionAPI,
+  getAgentDir,
+} from "@earendil-works/pi-coding-agent";
 import type { Scope } from "../types";
 import {
   compareVersions,
@@ -107,12 +110,16 @@ export interface Migration<TConfig> {
   ) => Promise<TConfig> | TConfig;
 }
 
+export type ProjectState = "pending" | "trusted" | "untrusted";
+
 /**
  * Interface for settings storage, used by registerSettingsCommand.
  * ConfigLoader implements this. Extensions with custom loaders can
  * implement this interface directly.
  */
 export interface ConfigStore<TConfig extends object, TResolved extends object> {
+  getScopeState?(scope: Scope): ProjectState;
+  getScopePath?(scope: Scope): string | null;
   getConfig(): TResolved;
   getRawConfig(scope: Scope): TConfig | null;
   hasScope(scope: Scope): boolean;
@@ -137,8 +144,11 @@ export interface VersionedConfig {
  * Stops at home directory.
  * Returns the path to .pi/extensions/{name}.json, or null if no .pi found.
  */
-function findLocalConfigPath(extensionName: string): string | null {
-  let dir = process.cwd();
+function findLocalConfigPath(
+  extensionName: string,
+  cwd: string,
+): string | null {
+  let dir = resolve(cwd);
   const home = homedir();
 
   while (true) {
@@ -169,7 +179,8 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
 
   private readonly scopes: Scope[];
   private readonly globalPath: string | null;
-  private localPath: string | null;
+  private localPath: string | null = null;
+  private projectState: ProjectState = "pending";
   private readonly defaults: TResolved;
   private readonly extensionName: string;
   private readonly migrations: Migration<TConfig>[];
@@ -272,10 +283,6 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     this.globalPath = this.scopes.includes("global")
       ? resolve(getAgentDir(), `extensions/${extensionName}.json`)
       : null;
-
-    this.localPath = this.scopes.includes("local")
-      ? findLocalConfigPath(extensionName)
-      : null;
   }
 
   /**
@@ -285,19 +292,44 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
    * Note: Memory config is reset to null on reload (ephemeral).
    */
   async load(): Promise<void> {
+    this.projectState = "pending";
+    this.localPath = null;
+    this.localConfig = null;
     this.globalConfig = this.globalPath
       ? await this.readFile(this.globalPath)
       : null;
-    this.localConfig = this.localPath
-      ? await this.readFile(this.localPath)
-      : null;
-
     this.memoryConfig = null;
 
     if (this.globalConfig && this.globalPath) {
       this.globalConfig = await this.applyMigrations(
         this.globalConfig,
         this.globalPath,
+      );
+    }
+
+    this.resolved = this.merge();
+  }
+
+  async loadProject(ctx: {
+    cwd: string;
+    isProjectTrusted(): boolean;
+  }): Promise<void> {
+    this.localConfig = null;
+    this.localPath = this.hasScope("local")
+      ? (findLocalConfigPath(this.extensionName, ctx.cwd) ??
+        resolve(ctx.cwd, `.pi/extensions/${this.extensionName}.json`))
+      : null;
+    this.projectState = ctx.isProjectTrusted() ? "trusted" : "untrusted";
+    if (this.localPath && this.projectState === "trusted") {
+      this.localConfig = await this.readFile(this.localPath);
+    }
+    if (
+      this.localPath &&
+      this.projectState === "untrusted" &&
+      existsSync(this.localPath)
+    ) {
+      this.pendingMessages.push(
+        `Ignored ${this.localPath}: project not trusted. Use /trust and restart Pi to apply it.`,
       );
     }
     if (this.localConfig && this.localPath) {
@@ -308,6 +340,22 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     }
 
     this.resolved = this.merge();
+  }
+
+  getProjectState(): ProjectState {
+    return this.projectState;
+  }
+
+  getScopeState(scope: Scope): ProjectState {
+    return scope === "local" ? this.projectState : "trusted";
+  }
+
+  getScopePath(scope: Scope): string | null {
+    return scope === "local"
+      ? this.localPath
+      : scope === "global"
+        ? this.globalPath
+        : null;
   }
 
   getConfig(): TResolved {
@@ -388,14 +436,8 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
       return;
     }
 
-    const path = scope === "global" ? this.globalPath : this.localPath;
-
-    // Fallback: create .pi/extensions/ in cwd for local scope if no path found
-    if (!path && scope === "local") {
-      this.localPath = resolve(
-        process.cwd(),
-        `.pi/extensions/${this.extensionName}.json`,
-      );
+    if (scope === "local" && this.projectState !== "trusted") {
+      throw new Error("Project settings are not trusted");
     }
 
     const finalPath = scope === "global" ? this.globalPath : this.localPath;
@@ -410,9 +452,9 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
     this.globalConfig = this.globalPath
       ? await this.readFile(this.globalPath)
       : null;
-    this.localConfig = this.localPath
-      ? await this.readFile(this.localPath)
-      : null;
+    if (scope === "local" && this.localPath) {
+      this.localConfig = await this.readFile(this.localPath);
+    }
     this.memoryConfig = savedMemory;
     this.resolved = this.merge();
   }
@@ -585,6 +627,13 @@ export class ConfigLoader<TConfig extends object, TResolved extends object>
   }
 }
 
+export function bindProjectConfig<
+  TConfig extends object,
+  TResolved extends object,
+>(pi: ExtensionAPI, loader: ConfigLoader<TConfig, TResolved>): void {
+  pi.on("session_start", (_event, ctx) => loader.loadProject(ctx));
+}
+
 /**
  * Create a ConfigStore that delegates to a ConfigLoader.
  *
@@ -600,6 +649,8 @@ export function createConfigStore<
 ): ConfigStore<TConfig, TResolved> {
   const scopes = options?.scopes;
   return {
+    getScopeState: (scope) => loader.getScopeState(scope),
+    getScopePath: (scope) => loader.getScopePath(scope),
     getConfig: () => loader.getConfig(),
     getRawConfig: (scope) => loader.getRawConfig(scope),
     hasScope: (scope) => loader.hasScope(scope),

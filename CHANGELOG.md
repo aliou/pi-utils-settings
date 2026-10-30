@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.24.0
+
+### Minor Changes
+
+- 5e496f3: Defer project configuration until Pi confirms project trust. Add loadProject and bindProjectConfig, block untrusted local saves and editing, and require Pi 1.4 or later.
+
 ## 0.23.0
 
 ### Minor Changes

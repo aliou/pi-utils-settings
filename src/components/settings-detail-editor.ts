@@ -3,10 +3,10 @@ import {
   Input,
   Key,
   matchesKey,
-  truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "../shared/truncate";
 import type {
   SettingsSubmenuComponent,
   SettingsSubmenuContext,
@@ -589,7 +589,7 @@ export class SettingsDetailEditor implements Component {
       const options = this.resolveEnumOptions(field);
       const current = field.getValue();
       const idx = options.indexOf(current);
-      this.enumOptionIndex = idx >= 0 ? idx : 0;
+      this.enumOptionIndex = Math.max(idx, 0);
       return;
     }
 

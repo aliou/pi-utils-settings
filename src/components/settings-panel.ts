@@ -9,14 +9,10 @@ import type {
   Theme,
 } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
-import {
-  Key,
-  matchesKey,
-  truncateToWidth,
-  visibleWidth,
-} from "@earendil-works/pi-tui";
+import { Key, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 import type { ConfigStore } from "../config/loader";
 import { getNestedValue, setNestedValue } from "../helpers";
+import { truncateToWidth } from "../shared/truncate";
 import { getSettingsTheme, type SettingsTheme } from "../theme";
 import {
   type ExtraSettingsTab,

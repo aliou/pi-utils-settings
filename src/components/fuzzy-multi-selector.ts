@@ -17,9 +17,9 @@ import {
   Input,
   Key,
   matchesKey,
-  truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "../shared/truncate";
 
 export interface FuzzyMultiSelectorSubOption {
   label: string;

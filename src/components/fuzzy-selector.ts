@@ -4,9 +4,9 @@ import {
   Input,
   Key,
   matchesKey,
-  truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "../shared/truncate";
 
 /**
  * A submenu component for selecting one item from a large list using fuzzy search.

@@ -5,10 +5,10 @@ import {
   matchesKey,
   type SettingItem,
   type SettingsListTheme,
-  truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "../shared/truncate";
 
 /**
  * A sectioned settings list. Items are grouped under section headers.

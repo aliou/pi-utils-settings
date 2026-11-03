@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.24.1
+
+### Patch Changes
+
+- eb6ee5c: Ship `CHANGELOG.md` in the npm tarball so pi can show the changelog when the extension updates.
+
 ## 0.24.0
 
 ### Minor Changes

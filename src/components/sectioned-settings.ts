@@ -1,3 +1,4 @@
+import { truncateToWidth } from "@aliou/pi-utils-ui";
 import type { Component } from "@earendil-works/pi-tui";
 import {
   Input,
@@ -8,7 +9,6 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import { truncateToWidth } from "../shared/truncate";
 
 /**
  * A sectioned settings list. Items are grouped under section headers.

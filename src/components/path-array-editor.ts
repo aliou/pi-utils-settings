@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { truncateToWidth } from "@aliou/pi-utils-ui";
 import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import { Input, Key, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
-import { truncateToWidth } from "../shared/truncate";
 
 export interface PathArrayEditorOptions {
   label: string;

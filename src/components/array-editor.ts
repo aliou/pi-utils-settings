@@ -1,6 +1,6 @@
+import { truncateToWidth } from "@aliou/pi-utils-ui";
 import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import { Input, Key, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
-import { truncateToWidth } from "../shared/truncate";
 
 /**
  * A submenu component for editing string arrays inside a SettingsList.

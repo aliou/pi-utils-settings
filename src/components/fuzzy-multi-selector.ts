@@ -11,6 +11,7 @@
  * - Scrolls when items exceed maxVisible
  */
 
+import { truncateToWidth } from "@aliou/pi-utils-ui";
 import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import {
   fuzzyFilter,
@@ -19,7 +20,6 @@ import {
   matchesKey,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import { truncateToWidth } from "../shared/truncate";
 
 export interface FuzzyMultiSelectorSubOption {
   label: string;

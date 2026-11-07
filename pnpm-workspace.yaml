@@ -3,4 +3,5 @@ allowBuilds:
   "@google/genai": false
   protobufjs: false
 minimumReleaseAgeExclude:
-  - '@aliou/biome-plugins@0.17.0'
+  - '@aliou/biome-plugins@0.17.0 || 0.18.1'
+  - '@aliou/pi-utils-ui@0.6.0'

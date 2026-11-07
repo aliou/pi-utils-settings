@@ -42,9 +42,6 @@
     "version": "changeset version",
     "release": "pnpm changeset publish"
   },
-  "dependencies": {
-    "@aliou/pi-utils-ui": "^0.5.0"
-  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=1.4.0 <2",
     "ts-json-schema-generator": ">=2.4.0 <3"
@@ -58,8 +55,8 @@
     }
   },
   "devDependencies": {
-    "@aliou/pi-utils-ui": "^0.5.0",
-    "@aliou/biome-plugins": "^0.17.0",
+    "@aliou/biome-plugins": "^0.18.1",
+    "@aliou/pi-utils-ui": "^0.6.0",
     "@biomejs/biome": "^2.6.4",
     "@changesets/cli": "^2.27.11",
     "@earendil-works/pi-coding-agent": "1.4.0",

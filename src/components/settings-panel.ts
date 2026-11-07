@@ -4,6 +4,7 @@
  * and only persisted by save() (Ctrl+S).
  */
 
+import { truncateToWidth } from "@aliou/pi-utils-ui";
 import type {
   ExtensionCommandContext,
   Theme,
@@ -12,7 +13,6 @@ import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 import type { ConfigStore } from "../config/loader";
 import { getNestedValue, setNestedValue } from "../helpers";
-import { truncateToWidth } from "../shared/truncate";
 import { getSettingsTheme, type SettingsTheme } from "../theme";
 import {
   type ExtraSettingsTab,

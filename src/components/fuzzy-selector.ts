@@ -1,3 +1,4 @@
+import { truncateToWidth } from "@aliou/pi-utils-ui";
 import type { Component, SettingsListTheme } from "@earendil-works/pi-tui";
 import {
   fuzzyFilter,
@@ -6,7 +7,6 @@ import {
   matchesKey,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import { truncateToWidth } from "../shared/truncate";
 
 /**
  * A submenu component for selecting one item from a large list using fuzzy search.

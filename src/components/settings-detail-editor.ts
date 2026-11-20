@@ -224,7 +224,7 @@ export class SettingsDetailEditor implements Component {
 
   render(width: number): string[] {
     if (this.submenuComponent) {
-      const lines = this.submenuComponent.render(width);
+      const lines = [...this.submenuComponent.render(width)];
       // Pad submenu output so the panel height stays stable at any depth.
       for (let i = lines.length; i < this.contentHeight; i++) {
         lines.push("");

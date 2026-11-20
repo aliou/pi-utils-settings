@@ -1,5 +1,11 @@
 # @aliou/pi-utils-settings
 
+## 0.24.2
+
+### Patch Changes
+
+- 1f12677: Copy submenu render output in `SettingsDetailEditor` before padding it, so it no longer mutates the cached array returned by a submenu's `render()` (pi-tui ≥1.6.0).
+
 ## 0.24.1
 
 ### Patch Changes
